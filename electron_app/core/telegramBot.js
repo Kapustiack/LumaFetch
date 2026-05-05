@@ -7,7 +7,6 @@ const { TelegramApi } = require('./telegramApi');
 const {
   analyzeVideo,
   getPlaylistFlat,
-  checkPlaylistItems,
   downloadAudio,
   downloadVideo,
 } = require('./ytdlp');
@@ -92,7 +91,7 @@ function helpText() {
     '',
     'Playlist audio:',
     '/playlist <link>',
-    'I will count supported playlist items, check what can download, then ask for format and quality with buttons.',
+    'I will read the playlist quickly, ask for format and quality with buttons, then try each item one by one.',
     '',
     'Video:',
     '/video <link>',
@@ -355,10 +354,10 @@ class TelegramBotController {
           [
             `Queued playlist as MP3.`,
             `Playlist: ${flow.title}`,
-            `Can download: ${flow.items.length}/${flow.total}`,
+            `Items queued: ${flow.items.length}/${flow.total}`,
             `Quality: ${value}`,
             '',
-            'I will download and send one by one.',
+            'I will try each item one by one and skip anything unavailable.',
           ].join('\n'),
           { reply_markup: { inline_keyboard: [] } },
         );
@@ -374,25 +373,20 @@ class TelegramBotController {
     if (action === 'vq') {
       this.pendingFlows.delete(id);
       if (flow.kind === 'playlist') {
-        const videoItems = flow.items.filter((item) => item.qualities && item.qualities.length);
-        if (!videoItems.length) {
-          await this.api.editMessage(chatId, messageId, 'No MP4-capable items were found in this playlist.', { reply_markup: { inline_keyboard: [] } });
-          return;
-        }
         await this.api.editMessage(
           chatId,
           messageId,
           [
             `Queued playlist as MP4.`,
             `Playlist: ${flow.title}`,
-            `Can download as MP4: ${videoItems.length}/${flow.total}`,
+            `Items queued: ${flow.items.length}/${flow.total}`,
             `Quality: ${value}`,
             '',
-            'I will download and send one by one.',
+            'I will try each item one by one and skip anything unavailable.',
           ].join('\n'),
           { reply_markup: { inline_keyboard: [] } },
         );
-        this.enqueue({ type: 'playlist-video', chatId, messageId, title: flow.title, items: videoItems, total: flow.total, unavailable: flow.unavailable, quality: value });
+        this.enqueue({ type: 'playlist-video', chatId, messageId, title: flow.title, items: flow.items, total: flow.total, unavailable: flow.unavailable, quality: value });
         return;
       }
 
@@ -435,20 +429,6 @@ class TelegramBotController {
     const message = await this.api.sendMessage(chatId, `Reading playlist...\n${url}`);
     try {
       const flat = await getPlaylistFlat(this.tools, url, this.jobCancelToken);
-      await this.api.editMessage(
-        chatId,
-        message.message_id,
-        `Playlist found: ${flat.title}\nTotal items: ${flat.total}\nChecking what can download...`,
-      );
-      const checked = await checkPlaylistItems(this.tools, flat.entries, {
-        cancelToken: this.jobCancelToken,
-        mediaType: 'audio',
-        onProgress: (payload) => this.safeEdit(
-          chatId,
-          message.message_id,
-          `Playlist found: ${flat.title}\nTotal items: ${flat.total}\nChecking ${payload.index}/${payload.total}...\n${payload.title}`,
-        ),
-      });
       if (this.jobCancelToken.cancelled) throw new Error('Cancelled');
       const id = this.registerFlow({
         kind: 'playlist',
@@ -456,8 +436,8 @@ class TelegramBotController {
         url,
         title: flat.title,
         total: flat.total,
-        items: checked.available,
-        unavailable: checked.unavailable,
+        items: flat.entries,
+        unavailable: [],
       });
       await this.api.editMessage(
         chatId,
@@ -465,10 +445,9 @@ class TelegramBotController {
         [
           `Playlist: ${flat.title}`,
           `Total items: ${flat.total}`,
-          `Can download: ${checked.available.length}`,
-          `Cannot download: ${checked.unavailable.length}`,
           '',
-          'It will download in a queue after you choose format and quality.',
+          'It will try each item in order after you choose format and quality.',
+          'If one item is blocked or unavailable, it will be skipped and the queue will continue.',
           'Default is MP3 audio.',
         ].join('\n'),
         this.formatKeyboard(id),
@@ -532,7 +511,20 @@ class TelegramBotController {
   friendlyError(error) {
     const message = error && error.message ? error.message : String(error);
     if (/drm|protected/i.test(message)) return 'This link appears to be protected and cannot be downloaded.';
-    return message.slice(0, 1200);
+    if (/sign in to confirm|not a bot|cookies-from-browser|youtube.*bot/i.test(message)) {
+      return 'YouTube asked for sign-in or bot verification, so this item was skipped.';
+    }
+    if (/private video|members-only|unavailable|copyright|removed/i.test(message)) {
+      return 'This item is unavailable, private, removed, or restricted.';
+    }
+    if (/no mp3 output|no video output|no .*output was created/i.test(message)) {
+      return 'The download finished without creating a usable file.';
+    }
+    return message.replace(/\s+/g, ' ').slice(0, 260);
+  }
+
+  unableText(title, error) {
+    return `Unable to send "${cleanTitle(title)}".\n${this.friendlyError(error)}`;
   }
 
   async safeEdit(chatId, messageId, text) {
@@ -583,26 +575,47 @@ class TelegramBotController {
       [
         `Playlist queued as MP3.`,
         `Playlist: ${job.title || 'Playlist'}`,
-        `Can download: ${items.length}/${job.total || items.length}`,
+        `Items queued: ${items.length}/${job.total || items.length}`,
         `Quality: ${job.bitrate || this.bitrate}`,
         '',
         'Starting one by one...',
       ].join('\n'),
     );
 
+    let sent = 0;
+    let skipped = 0;
     for (let index = 0; index < items.length; index += 1) {
       if (this.cancelToken.cancelled || this.jobCancelToken.cancelled) break;
       const item = items[index];
       const progress = await this.api.sendMessage(job.chatId, `Playlist ${index + 1}/${items.length}\n${item.title}`);
-      await this.processSingleAudio({
-        ...job,
-        type: 'single-audio',
-        url: item.url,
-        messageId: progress.message_id,
-        bitrate: job.bitrate || this.bitrate,
-      });
+      try {
+        await this.processSingleAudio({
+          ...job,
+          type: 'single-audio',
+          url: item.url,
+          messageId: progress.message_id,
+          bitrate: job.bitrate || this.bitrate,
+        });
+        sent += 1;
+      } catch (error) {
+        if (/cancelled/i.test(error.message)) throw error;
+        skipped += 1;
+        await this.safeEdit(job.chatId, progress.message_id, this.unableText(item.title, error));
+        this.emit({ type: 'job', status: `Skipped: ${this.friendlyError(error)}`, job: { ...job, title: item.title, url: item.url } });
+      }
+      await this.safeEdit(
+        job.chatId,
+        job.messageId,
+        [
+          `Playlist running as MP3.`,
+          `Playlist: ${job.title || 'Playlist'}`,
+          `Progress: ${index + 1}/${items.length}`,
+          `Sent: ${sent}`,
+          `Skipped: ${skipped}`,
+        ].join('\n'),
+      );
     }
-    await this.safeEdit(job.chatId, job.messageId, 'Playlist finished.');
+    await this.safeEdit(job.chatId, job.messageId, `Playlist finished.\nSent: ${sent}\nSkipped: ${skipped}`);
   }
 
   async processPlaylistVideo(job) {
@@ -613,27 +626,48 @@ class TelegramBotController {
       [
         `Playlist queued as MP4.`,
         `Playlist: ${job.title || 'Playlist'}`,
-        `Can download: ${items.length}/${job.total || items.length}`,
+        `Items queued: ${items.length}/${job.total || items.length}`,
         `Quality: ${job.quality || 'best'}`,
         '',
         'Starting one by one...',
       ].join('\n'),
     );
 
+    let sent = 0;
+    let skipped = 0;
     for (let index = 0; index < items.length; index += 1) {
       if (this.cancelToken.cancelled || this.jobCancelToken.cancelled) break;
       const item = items[index];
       const progress = await this.api.sendMessage(job.chatId, `Playlist video ${index + 1}/${items.length}\n${item.title}`);
-      await this.processVideo({
-        ...job,
-        type: 'video',
-        url: item.url,
-        title: item.title,
-        messageId: progress.message_id,
-        quality: job.quality || 'best',
-      });
+      try {
+        await this.processVideo({
+          ...job,
+          type: 'video',
+          url: item.url,
+          title: item.title,
+          messageId: progress.message_id,
+          quality: job.quality || 'best',
+        });
+        sent += 1;
+      } catch (error) {
+        if (/cancelled/i.test(error.message)) throw error;
+        skipped += 1;
+        await this.safeEdit(job.chatId, progress.message_id, this.unableText(item.title, error));
+        this.emit({ type: 'job', status: `Skipped: ${this.friendlyError(error)}`, job: { ...job, title: item.title, url: item.url } });
+      }
+      await this.safeEdit(
+        job.chatId,
+        job.messageId,
+        [
+          `Playlist running as MP4.`,
+          `Playlist: ${job.title || 'Playlist'}`,
+          `Progress: ${index + 1}/${items.length}`,
+          `Sent: ${sent}`,
+          `Skipped: ${skipped}`,
+        ].join('\n'),
+      );
     }
-    await this.safeEdit(job.chatId, job.messageId, 'Playlist finished.');
+    await this.safeEdit(job.chatId, job.messageId, `Playlist finished.\nSent: ${sent}\nSkipped: ${skipped}`);
   }
 
   async processVideo(job) {

@@ -1,7 +1,7 @@
 {
   "name": "lumafetch",
   "productName": "LumaFetch",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Minimal media downloader, converter, and Telegram delivery app.",
   "main": "electron_app/main.js",
