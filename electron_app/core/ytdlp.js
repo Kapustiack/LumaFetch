@@ -11,6 +11,11 @@ function pythonArgs(tools, args) {
   return [...(tools.ytdlpPrefix || []), ...args];
 }
 
+function cookiesArgs(cookiesBrowser) {
+  const browser = String(cookiesBrowser || '').trim();
+  return browser ? ['--cookies-from-browser', browser] : [];
+}
+
 function runYtdlpJson(tools, args, timeoutMs = 120000, cancelToken = null) {
   return new Promise((resolve, reject) => {
     const child = spawn(tools.ytdlpCommand, pythonArgs(tools, args), { windowsHide: true });
@@ -129,12 +134,13 @@ function makeQualityList(info) {
   return qualities;
 }
 
-async function analyzeVideo(tools, url, cancelToken = null) {
+async function analyzeVideo(tools, url, cancelToken = null, options = {}) {
   const info = await runYtdlpJson(tools, [
     '--dump-single-json',
     '--no-playlist',
     '--skip-download',
     '--no-warnings',
+    ...cookiesArgs(options.cookiesBrowser),
     url,
   ], 120000, cancelToken);
   return {
@@ -147,11 +153,12 @@ async function analyzeVideo(tools, url, cancelToken = null) {
   };
 }
 
-async function getPlaylistFlat(tools, url, cancelToken = null) {
+async function getPlaylistFlat(tools, url, cancelToken = null, options = {}) {
   const info = await runYtdlpJson(tools, [
     '--flat-playlist',
     '--dump-single-json',
     '--no-warnings',
+    ...cookiesArgs(options.cookiesBrowser),
     url,
   ], 180000, cancelToken);
   const entries = (info.entries || [])
@@ -168,7 +175,12 @@ async function getPlaylistFlat(tools, url, cancelToken = null) {
   };
 }
 
-async function checkPlaylistItems(tools, entries, { cancelToken, onProgress, mediaType = 'audio' }) {
+async function checkPlaylistItems(tools, entries, {
+  cancelToken,
+  onProgress,
+  mediaType = 'audio',
+  cookiesBrowser = '',
+}) {
   const available = [];
   const unavailable = [];
   for (let index = 0; index < entries.length; index += 1) {
@@ -176,7 +188,7 @@ async function checkPlaylistItems(tools, entries, { cancelToken, onProgress, med
     const entry = entries[index];
     onProgress({ index: index + 1, total: entries.length, title: entry.title });
     try {
-      const info = await analyzeVideo(tools, entry.url, cancelToken);
+      const info = await analyzeVideo(tools, entry.url, cancelToken, { cookiesBrowser });
       const canUse = mediaType === 'video' ? info.qualities.length > 0 : info.hasAudio;
       if (canUse) {
         available.push({
@@ -217,6 +229,7 @@ async function downloadAudio(tools, options) {
     '10',
     '--concurrent-fragments',
     '5',
+    ...cookiesArgs(options.cookiesBrowser),
     '--ffmpeg-location',
     tools.ffmpegPath,
     '-f',
@@ -269,6 +282,7 @@ async function downloadVideo(tools, options) {
     '10',
     '--concurrent-fragments',
     '5',
+    ...cookiesArgs(options.cookiesBrowser),
     '--ffmpeg-location',
     tools.ffmpegPath,
     '--merge-output-format',

@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme="dark"] {
   --bg: #0a0d12;
   --sidebar: #0f131a;
   --card: #151a22;
@@ -13,6 +14,21 @@
   --danger: #ff718d;
   --radius: 14px;
   --radius-small: 10px;
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f7f5;
+  --sidebar: #eef2f1;
+  --card: #ffffff;
+  --card-2: #e8eef0;
+  --line: #d2dbde;
+  --line-soft: rgba(10, 15, 20, 0.08);
+  --text: #111820;
+  --muted: #62716f;
+  --soft: #354641;
+  --mint: #35d7b3;
+  --amber: #c68526;
+  --danger: #c63e60;
 }
 
 * {
@@ -31,6 +47,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
 }
@@ -139,9 +156,10 @@ h2 {
 }
 
 .nav {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  min-height: 0;
 }
 
 .nav-button {
@@ -166,6 +184,10 @@ h2 {
 
 .nav-button.active small {
   color: rgba(6, 16, 13, 0.72);
+}
+
+.nav-button[data-tab="settings"] {
+  margin-top: auto;
 }
 
 .sidebar-card {
@@ -351,18 +373,44 @@ h2 {
 }
 
 input,
+textarea,
 select {
   width: 100%;
-  height: 40px;
   border: 1px solid var(--line);
   border-radius: var(--radius-small);
-  padding: 0 11px;
   outline: none;
   color: var(--text);
   background: #0c1118;
 }
 
+input,
+select {
+  height: 40px;
+  padding: 0 11px;
+}
+
+textarea {
+  min-height: 40px;
+  max-height: 82px;
+  padding: 9px 11px;
+  resize: vertical;
+  line-height: 1.25;
+}
+
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select,
+:root[data-theme="light"] button:not(.primary),
+:root[data-theme="light"] .ghost,
+:root[data-theme="light"] .sidebar-card,
+:root[data-theme="light"] .segmented,
+:root[data-theme="light"] .pill,
+:root[data-theme="light"] .platform-strip span {
+  background: #f8faf9;
+}
+
 .fetch-form input,
+.fetch-form textarea,
 .fetch-form select {
   height: 36px;
 }
@@ -378,6 +426,7 @@ select {
 }
 
 input:focus,
+textarea:focus,
 select:focus {
   border-color: var(--mint);
 }
@@ -412,6 +461,11 @@ select:focus {
 .activity-card {
   min-height: 0;
   overflow: hidden;
+}
+
+.queue-card.drag-over {
+  border-color: var(--mint);
+  box-shadow: inset 0 0 0 1px rgba(114, 255, 213, 0.35);
 }
 
 .progress-card,
@@ -571,6 +625,90 @@ progress::-webkit-progress-value {
   display: none !important;
 }
 
+#settings.panel.active {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
+  gap: 14px;
+}
+
+.settings-card {
+  min-width: 0;
+}
+
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  padding: 15px;
+}
+
+.span-2 {
+  grid-column: 1 / -1;
+}
+
+.diagnostics-card {
+  min-height: 0;
+}
+
+.diagnostics-card pre {
+  min-height: 190px;
+  max-height: 340px;
+  margin: 0;
+  padding: 15px;
+  overflow: auto;
+  color: var(--soft);
+  background: #0c1118;
+  border-radius: 0 0 var(--radius) var(--radius);
+  font: 12px/1.45 Consolas, "Courier New", monospace;
+  white-space: pre-wrap;
+}
+
+:root[data-theme="light"] .diagnostics-card pre,
+:root[data-theme="light"] .setup-card {
+  background: #f8faf9;
+}
+
+.toast-host {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 30;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 36px));
+  pointer-events: none;
+}
+
+.toast {
+  display: grid;
+  gap: 4px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--mint);
+  border-radius: var(--radius-small);
+  background: var(--card);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.32);
+}
+
+.toast strong {
+  font-size: 13px;
+}
+
+.toast span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.toast.error {
+  border-left-color: var(--danger);
+}
+
 .setup-overlay {
   position: fixed;
   inset: 0;
@@ -642,7 +780,12 @@ progress::-webkit-progress-value {
   .bot-form,
   .work-grid,
   .relay-grid,
+  .settings-grid,
   .status-card {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-form {
     grid-template-columns: 1fr;
   }
 

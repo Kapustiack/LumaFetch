@@ -46,6 +46,10 @@
             <span>Relay</span>
             <small>Telegram bot</small>
           </button>
+          <button class="nav-button" data-tab="settings">
+            <span>Settings</span>
+            <small>Defaults and tools</small>
+          </button>
         </nav>
 
         <div class="sidebar-card">
@@ -130,7 +134,7 @@
           <div class="card form-card fetch-form">
             <label class="field full">
               <span>Link</span>
-              <input id="youtubeUrl" placeholder="Paste a supported link" />
+              <textarea id="youtubeUrl" rows="2" placeholder="Paste one or more supported links"></textarea>
             </label>
             <label class="field full">
               <span>Save to</span>
@@ -227,8 +231,9 @@
               </div>
               <p>/start or /help</p>
               <p>link -> MP3</p>
-              <p>/playlist link -> MP3 batch</p>
-              <p>/video link -> choose /quality</p>
+              <p>/playlist link -> buttons</p>
+              <p>/video link -> buttons</p>
+              <p>/status -> queue controls</p>
             </div>
             <div class="card bot-state">
               <strong id="botStatus">Disconnected</strong>
@@ -244,9 +249,113 @@
             <div id="botActivity" class="activity-list"></div>
           </div>
         </section>
+
+        <section id="settings" class="panel">
+          <header class="panel-header">
+            <div>
+              <p class="eyebrow">Settings</p>
+              <h2>Preferences</h2>
+            </div>
+            <div class="cluster">
+              <button id="settingsSave" class="primary">Save settings</button>
+            </div>
+          </header>
+
+          <div class="settings-grid">
+            <div class="card settings-card">
+              <div class="card-head">
+                <strong>App defaults</strong>
+                <span id="settingsHint">Ready</span>
+              </div>
+              <div class="settings-form">
+                <label class="field">
+                  <span>Theme</span>
+                  <select id="settingsTheme">
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                    <option value="system">System</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Default MP3</span>
+                  <select id="settingsAudioQuality">
+                    <option>128k</option>
+                    <option>192k</option>
+                    <option>256k</option>
+                    <option>320k</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Default video</span>
+                  <select id="settingsVideoQuality">
+                    <option value="best">best</option>
+                    <option>1080p</option>
+                    <option>720p</option>
+                    <option>480p</option>
+                    <option>360p</option>
+                  </select>
+                </label>
+                <label class="field span-2">
+                  <span>Default output</span>
+                  <div class="input-action">
+                    <input id="settingsOutput" readonly placeholder="Choose destination" />
+                    <button id="settingsOutputBrowse" class="small">Browse</button>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="card settings-card">
+              <div class="card-head">
+                <strong>Relay and web</strong>
+                <span>Telegram + yt-dlp</span>
+              </div>
+              <div class="settings-form">
+                <label class="field">
+                  <span>Cookies browser</span>
+                  <select id="settingsCookieBrowser">
+                    <option value="">None</option>
+                    <option value="chrome">Chrome</option>
+                    <option value="edge">Edge</option>
+                    <option value="firefox">Firefox</option>
+                    <option value="brave">Brave</option>
+                    <option value="opera">Opera</option>
+                    <option value="vivaldi">Vivaldi</option>
+                    <option value="chromium">Chromium</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Telegram max MB</span>
+                  <input id="settingsMaxMb" type="number" min="1" max="2000" value="50" />
+                </label>
+                <label class="switch-row">
+                  <input id="settingsLockChat" type="checkbox" />
+                  <span>Lock chat</span>
+                </label>
+                <label class="switch-row">
+                  <input id="settingsAutoUpdate" type="checkbox" />
+                  <span>Auto update</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card settings-card diagnostics-card">
+            <div class="card-head">
+              <strong>Tools</strong>
+              <div class="cluster">
+                <button id="settingsRefreshDiag" class="ghost small">Refresh</button>
+                <button id="settingsCleanTemp" class="ghost small">Clean temp</button>
+                <button id="settingsUpdateCheck" class="ghost small">Check updates</button>
+              </div>
+            </div>
+            <pre id="settingsDiagnostics">Loading diagnostics...</pre>
+          </div>
+        </section>
       </main>
     </div>
 
+    <div id="toastHost" class="toast-host"></div>
     <script src="./renderer.js"></script>
   </body>
 </html>

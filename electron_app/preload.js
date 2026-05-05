@@ -15,7 +15,14 @@ contextBridge.exposeInMainWorld('mediaForge', {
   checkDependencies: () => ipcRenderer.invoke('dependencies:check'),
   installDependencies: () => ipcRenderer.invoke('dependencies:install'),
 
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  saveSettings: (payload) => ipcRenderer.invoke('settings:save', payload),
+  getDiagnostics: () => ipcRenderer.invoke('settings:diagnostics'),
+  cleanTempFiles: () => ipcRenderer.invoke('settings:cleanTemp'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+
   scanFolder: (payload) => ipcRenderer.invoke('local:scanFolder', payload),
+  collectMediaPaths: (payload) => ipcRenderer.invoke('local:collectPaths', payload),
   convertLocal: (payload) => ipcRenderer.invoke('local:convert', payload),
   cancelLocal: () => ipcRenderer.invoke('local:cancel'),
 
@@ -33,4 +40,5 @@ contextBridge.exposeInMainWorld('mediaForge', {
   onYoutubeEvent: (callback) => on('youtube:event', callback),
   onBotEvent: (callback) => on('bot:event', callback),
   onDependencyEvent: (callback) => on('dependencies:event', callback),
+  onUpdateEvent: (callback) => on('updates:event', callback),
 });

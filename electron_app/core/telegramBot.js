@@ -83,6 +83,9 @@ function helpText() {
     '',
     '/help - show this guide',
     '/start - show this guide',
+    '/status - show queue controls',
+    '/pause - pause queued work',
+    '/resume - continue queued work',
     '/cancel - stop the current download and clear queued jobs',
     '',
     'Audio:',
@@ -102,21 +105,25 @@ function helpText() {
 }
 
 class TelegramBotController {
-  constructor({ token, tools, bitrate, maxFileMb, lockFirstChat, sendEvent }) {
+  constructor({ token, tools, bitrate, maxFileMb, lockFirstChat, cookiesBrowser, sendEvent }) {
     this.api = new TelegramApi(token);
     this.tools = tools;
     this.bitrate = bitrate || '192k';
     this.maxFileMb = Math.max(1, Number(maxFileMb || 50));
     this.lockFirstChat = lockFirstChat;
+    this.cookiesBrowser = cookiesBrowser || '';
     this.sendEvent = sendEvent;
     this.cancelToken = { cancelled: false };
     this.jobCancelToken = createCancelToken();
     this.queue = [];
+    this.paused = false;
+    this.currentJob = null;
     this.processing = false;
     this.offset = null;
     this.allowedChatId = null;
     this.pendingVideos = new Map();
     this.pendingFlows = new Map();
+    this.pendingRetries = new Map();
     this.polling = false;
   }
 
@@ -182,6 +189,36 @@ class TelegramBotController {
     ]);
   }
 
+  queueControlsKeyboard() {
+    return replyMarkup([
+      [
+        button('Pause', 'queue:pause'),
+        button('Resume', 'queue:resume'),
+      ],
+      [
+        button('Cancel current and queue', 'queue:cancel'),
+      ],
+    ]);
+  }
+
+  retryKeyboard(job) {
+    const id = this.registerRetry(job);
+    return replyMarkup([[button('Retry', `retry:${id}`)]]);
+  }
+
+  registerRetry(job) {
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+    for (const [id, retry] of this.pendingRetries.entries()) {
+      if ((retry.createdAt || 0) < cutoff) this.pendingRetries.delete(id);
+    }
+    const id = callbackId();
+    this.pendingRetries.set(id, {
+      ...job,
+      createdAt: Date.now(),
+    });
+    return id;
+  }
+
   async pollLoop() {
     while (this.polling && !this.cancelToken.cancelled) {
       try {
@@ -226,6 +263,23 @@ class TelegramBotController {
       return;
     }
 
+    if (matchesAnyCommand(trimmed, ['status'])) {
+      await this.api.sendMessage(chatId, this.queueStatusText(), this.queueControlsKeyboard());
+      return;
+    }
+
+    if (matchesAnyCommand(trimmed, ['pause'])) {
+      this.pauseQueue();
+      await this.api.sendMessage(chatId, 'Paused. Current upload/download may finish its current step first.', this.queueControlsKeyboard());
+      return;
+    }
+
+    if (matchesAnyCommand(trimmed, ['resume'])) {
+      this.resumeQueue();
+      await this.api.sendMessage(chatId, 'Resumed.', this.queueControlsKeyboard());
+      return;
+    }
+
     if (matchesAnyCommand(trimmed, ['cancel', 'stop'])) {
       this.cancelJobs();
       await this.api.sendMessage(chatId, 'Cancelled current Telegram job and cleared the queue.');
@@ -263,7 +317,7 @@ class TelegramBotController {
         await this.api.sendMessage(chatId, 'Use: /audio <media link>');
         return;
       }
-      const progress = await this.api.sendMessage(chatId, `Queued MP3...\n${url}`);
+      const progress = await this.api.sendMessage(chatId, `Queued MP3...\n${url}`, this.queueControlsKeyboard());
       this.enqueue({ type: 'single-audio', chatId, url, messageId: progress.message_id });
       return;
     }
@@ -274,7 +328,7 @@ class TelegramBotController {
       return;
     }
     for (const url of urls) {
-      const progress = await this.api.sendMessage(chatId, `Queued MP3...\n${url}`);
+      const progress = await this.api.sendMessage(chatId, `Queued MP3...\n${url}`, this.queueControlsKeyboard());
       this.enqueue({ type: 'single-audio', chatId, url, messageId: progress.message_id });
     }
   }
@@ -294,6 +348,35 @@ class TelegramBotController {
 
     const [action, id, ...rest] = data.split(':');
     const value = rest.join(':');
+
+    if (action === 'queue') {
+      await this.api.answerCallbackQuery(query.id);
+      if (id === 'pause') {
+        this.pauseQueue();
+        await this.api.editMessage(chatId, messageId, this.queueStatusText(), this.queueControlsKeyboard());
+      } else if (id === 'resume') {
+        this.resumeQueue();
+        await this.api.editMessage(chatId, messageId, this.queueStatusText(), this.queueControlsKeyboard());
+      } else if (id === 'cancel') {
+        this.cancelJobs();
+        await this.api.editMessage(chatId, messageId, 'Cancelled current Telegram job and cleared the queue.', { reply_markup: { inline_keyboard: [] } });
+      }
+      return;
+    }
+
+    if (action === 'retry') {
+      const retry = this.pendingRetries.get(id);
+      if (!retry) {
+        await this.api.answerCallbackQuery(query.id, 'This retry is no longer active.');
+        return;
+      }
+      this.pendingRetries.delete(id);
+      await this.api.answerCallbackQuery(query.id, 'Retry queued.');
+      await this.api.editMessage(chatId, messageId, `Retry queued...\n${retry.title || retry.url || retry.type}`, this.queueControlsKeyboard());
+      this.enqueue({ ...retry, chatId, messageId, createdAt: undefined });
+      return;
+    }
+
     const flow = this.pendingFlows.get(id);
     if (!flow) {
       await this.api.answerCallbackQuery(query.id, 'This choice is no longer active.');
@@ -359,13 +442,13 @@ class TelegramBotController {
             '',
             'I will try each item one by one and skip anything unavailable.',
           ].join('\n'),
-          { reply_markup: { inline_keyboard: [] } },
+          this.queueControlsKeyboard(),
         );
         this.enqueue({ type: 'playlist-audio', chatId, messageId, title: flow.title, items: flow.items, total: flow.total, unavailable: flow.unavailable, bitrate: value });
         return;
       }
 
-      await this.api.editMessage(chatId, messageId, `Queued MP3 ${value}...\n${flow.title}`, { reply_markup: { inline_keyboard: [] } });
+      await this.api.editMessage(chatId, messageId, `Queued MP3 ${value}...\n${flow.title}`, this.queueControlsKeyboard());
       this.enqueue({ type: 'single-audio', chatId, url: flow.url, title: flow.title, messageId, bitrate: value });
       return;
     }
@@ -384,13 +467,13 @@ class TelegramBotController {
             '',
             'I will try each item one by one and skip anything unavailable.',
           ].join('\n'),
-          { reply_markup: { inline_keyboard: [] } },
+          this.queueControlsKeyboard(),
         );
         this.enqueue({ type: 'playlist-video', chatId, messageId, title: flow.title, items: flow.items, total: flow.total, unavailable: flow.unavailable, quality: value });
         return;
       }
 
-      await this.api.editMessage(chatId, messageId, `Queued MP4 ${value}...\n${flow.title}`, { reply_markup: { inline_keyboard: [] } });
+      await this.api.editMessage(chatId, messageId, `Queued MP4 ${value}...\n${flow.title}`, this.queueControlsKeyboard());
       this.enqueue({ type: 'video', chatId, url: flow.url, quality: value, title: flow.title, messageId });
     }
   }
@@ -398,7 +481,7 @@ class TelegramBotController {
   async prepareVideoFormat(chatId, url) {
     const message = await this.api.sendMessage(chatId, `Detecting source...\n${url}`);
     try {
-      const info = await analyzeVideo(this.tools, url, this.jobCancelToken);
+      const info = await analyzeVideo(this.tools, url, this.jobCancelToken, { cookiesBrowser: this.cookiesBrowser });
       if (!info.hasAudio && !info.qualities.length) {
         await this.api.editMessage(chatId, message.message_id, 'No downloadable audio or video streams were found.');
         return;
@@ -428,7 +511,7 @@ class TelegramBotController {
   async preparePlaylist(chatId, url) {
     const message = await this.api.sendMessage(chatId, `Reading playlist...\n${url}`);
     try {
-      const flat = await getPlaylistFlat(this.tools, url, this.jobCancelToken);
+      const flat = await getPlaylistFlat(this.tools, url, this.jobCancelToken, { cookiesBrowser: this.cookiesBrowser });
       if (this.jobCancelToken.cancelled) throw new Error('Cancelled');
       const id = this.registerFlow({
         kind: 'playlist',
@@ -465,21 +548,59 @@ class TelegramBotController {
     }
   }
 
+  queueStatusText() {
+    const current = this.currentJob ? (this.currentJob.title || this.currentJob.url || this.currentJob.type) : 'None';
+    return [
+      `Status: ${this.paused ? 'Paused' : this.processing ? 'Running' : 'Idle'}`,
+      `Current: ${cleanTitle(current)}`,
+      `Queued: ${this.queue.length}`,
+    ].join('\n');
+  }
+
+  pauseQueue() {
+    this.paused = true;
+    this.emit({ type: 'job', status: 'Paused Telegram queue', job: this.currentJob || { type: 'queue' } });
+  }
+
+  resumeQueue() {
+    this.paused = false;
+    this.emit({ type: 'job', status: 'Resumed Telegram queue', job: this.currentJob || { type: 'queue' } });
+  }
+
   cancelJobs() {
+    this.paused = false;
     this.queue = [];
     requestCancel(this.jobCancelToken);
     this.pendingVideos.clear();
     this.pendingFlows.clear();
+    this.pendingRetries.clear();
     this.emit({ type: 'job', status: 'Cancelled queued Telegram jobs', job: { type: 'cancel' } });
+  }
+
+  async waitIfPaused(chatId) {
+    let notice = null;
+    while (this.paused && !this.cancelToken.cancelled && !this.jobCancelToken.cancelled) {
+      if (!notice && chatId) {
+        notice = await this.api.sendMessage(chatId, this.queueStatusText(), this.queueControlsKeyboard());
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    if (notice && chatId) {
+      await this.safeEdit(chatId, notice.message_id, this.queueStatusText());
+    }
   }
 
   async processQueue() {
     this.processing = true;
     while (this.queue.length && !this.cancelToken.cancelled) {
+      await this.waitIfPaused(this.queue[0] && this.queue[0].chatId);
+      if (!this.queue.length || this.cancelToken.cancelled) break;
       if (this.jobCancelToken.cancelled) {
         this.jobCancelToken = createCancelToken();
+        continue;
       }
       const job = this.queue.shift();
+      this.currentJob = job;
       try {
         if (job.type === 'playlist-audio') await this.processPlaylistAudio(job);
         if (job.type === 'playlist-video') await this.processPlaylistVideo(job);
@@ -490,10 +611,11 @@ class TelegramBotController {
           await this.safeEdit(job.chatId, job.messageId, 'Cancelled.');
           this.emit({ type: 'job', status: 'Cancelled', job });
         } else {
-          await this.safeEdit(job.chatId, job.messageId, `Failed:\n${this.friendlyError(error)}`);
+          await this.safeEdit(job.chatId, job.messageId, `Failed:\n${this.friendlyError(error)}`, this.retryKeyboard(job));
           this.emit({ type: 'job', status: `Failed: ${error.message}`, job });
         }
       } finally {
+        this.currentJob = null;
         if (this.jobCancelToken.cancelled) {
           this.jobCancelToken = createCancelToken();
         }
@@ -527,9 +649,9 @@ class TelegramBotController {
     return `Unable to send "${cleanTitle(title)}".\n${this.friendlyError(error)}`;
   }
 
-  async safeEdit(chatId, messageId, text) {
+  async safeEdit(chatId, messageId, text, options = {}) {
     try {
-      await this.api.editMessage(chatId, messageId, text);
+      await this.api.editMessage(chatId, messageId, text, options);
     } catch (_error) {
       // Progress edits are best effort.
     }
@@ -559,6 +681,7 @@ class TelegramBotController {
         bitrate: job.bitrate || this.bitrate,
         noPlaylist: true,
         cancelToken: this.jobCancelToken,
+        cookiesBrowser: this.cookiesBrowser,
         onProgress: (progress) => edit(`${progress.stage}${progress.percent == null ? '' : ` ${progress.percent.toFixed(1)}%`}\n${job.url}`),
       });
       await this.sendAndDeleteAudio(job, result.filePath, edit);
@@ -585,6 +708,7 @@ class TelegramBotController {
     let sent = 0;
     let skipped = 0;
     for (let index = 0; index < items.length; index += 1) {
+      await this.waitIfPaused(job.chatId);
       if (this.cancelToken.cancelled || this.jobCancelToken.cancelled) break;
       const item = items[index];
       const progress = await this.api.sendMessage(job.chatId, `Playlist ${index + 1}/${items.length}\n${item.title}`);
@@ -600,7 +724,14 @@ class TelegramBotController {
       } catch (error) {
         if (/cancelled/i.test(error.message)) throw error;
         skipped += 1;
-        await this.safeEdit(job.chatId, progress.message_id, this.unableText(item.title, error));
+        await this.safeEdit(job.chatId, progress.message_id, this.unableText(item.title, error), this.retryKeyboard({
+          type: 'single-audio',
+          chatId: job.chatId,
+          url: item.url,
+          title: item.title,
+          messageId: progress.message_id,
+          bitrate: job.bitrate || this.bitrate,
+        }));
         this.emit({ type: 'job', status: `Skipped: ${this.friendlyError(error)}`, job: { ...job, title: item.title, url: item.url } });
       }
       await this.safeEdit(
@@ -636,6 +767,7 @@ class TelegramBotController {
     let sent = 0;
     let skipped = 0;
     for (let index = 0; index < items.length; index += 1) {
+      await this.waitIfPaused(job.chatId);
       if (this.cancelToken.cancelled || this.jobCancelToken.cancelled) break;
       const item = items[index];
       const progress = await this.api.sendMessage(job.chatId, `Playlist video ${index + 1}/${items.length}\n${item.title}`);
@@ -652,7 +784,14 @@ class TelegramBotController {
       } catch (error) {
         if (/cancelled/i.test(error.message)) throw error;
         skipped += 1;
-        await this.safeEdit(job.chatId, progress.message_id, this.unableText(item.title, error));
+        await this.safeEdit(job.chatId, progress.message_id, this.unableText(item.title, error), this.retryKeyboard({
+          type: 'video',
+          chatId: job.chatId,
+          url: item.url,
+          title: item.title,
+          messageId: progress.message_id,
+          quality: job.quality || 'best',
+        }));
         this.emit({ type: 'job', status: `Skipped: ${this.friendlyError(error)}`, job: { ...job, title: item.title, url: item.url } });
       }
       await this.safeEdit(
@@ -680,6 +819,7 @@ class TelegramBotController {
         outputDir: dir,
         quality: job.quality,
         cancelToken: this.jobCancelToken,
+        cookiesBrowser: this.cookiesBrowser,
         onProgress: (progress) => edit(`${progress.stage}${progress.percent == null ? '' : ` ${progress.percent.toFixed(1)}%`}\n${job.quality}\n${job.title || job.url}`),
       });
       await this.sendAndDeleteVideo(job, result.filePath, edit);

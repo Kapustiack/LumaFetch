@@ -1,13 +1,16 @@
 {
   "name": "lumafetch",
   "productName": "LumaFetch",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "private": true,
+  "author": "Kapustiack",
   "description": "Minimal media downloader, converter, and Telegram delivery app.",
   "main": "electron_app/main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win nsis",
+    "build:signed": "electron-builder --win nsis -c.win.signAndEditExecutable=true",
+    "build:publish": "electron-builder --win nsis --publish always",
     "pack": "electron-builder --dir"
   },
   "build": {
@@ -48,10 +51,20 @@
       "installerIcon": "electron_app/assets/lumafetch-icon.ico",
       "uninstallerIcon": "electron_app/assets/lumafetch-icon.ico",
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Kapustiack",
+        "repo": "LumaFetch"
+      }
+    ]
   },
   "devDependencies": {
-    "electron": "^37.6.0",
+    "electron": "^41.5.0",
     "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

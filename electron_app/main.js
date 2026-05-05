@@ -1,6 +1,16 @@
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu, safeStorage } = require('electron');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+} catch (_error) {
+  autoUpdater = null;
+}
 
 const { createCancelToken, requestCancel } = require('./core/cancel');
 const { findTools, checkDependencies, installDependencies } = require('./core/tools');
@@ -10,7 +20,6 @@ const {
   downloadAudio,
   downloadVideo,
   getPlaylistFlat,
-  checkPlaylistItems,
 } = require('./core/ytdlp');
 const { TelegramBotController } = require('./core/telegramBot');
 
@@ -21,6 +30,23 @@ let youtubeCancel = createCancelToken();
 let botController = null;
 
 app.setName('LumaFetch');
+
+const DEFAULT_SETTINGS = {
+  theme: 'dark',
+  defaultOutputDir: '',
+  defaultAudioQuality: '192k',
+  defaultVideoQuality: 'best',
+  telegramMaxMb: 50,
+  telegramLockChat: true,
+  youtubeCookiesBrowser: '',
+  autoUpdate: true,
+  lastTempCleanupAt: null,
+};
+
+const THEMES = new Set(['dark', 'light', 'system']);
+const AUDIO_QUALITIES = new Set(['128k', '192k', '256k', '320k']);
+const VIDEO_QUALITIES = new Set(['best', '1080p', '720p', '480p', '360p']);
+const COOKIE_BROWSERS = new Set(['', 'chrome', 'edge', 'firefox', 'brave', 'opera', 'vivaldi', 'chromium']);
 
 function createWindow() {
   Menu.setApplicationMenu(null);
@@ -76,6 +102,102 @@ function writeSettings(settings) {
   fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
 }
 
+function normalizePublicSettings(settings) {
+  const publicSettings = {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+  };
+
+  if (!THEMES.has(publicSettings.theme)) publicSettings.theme = DEFAULT_SETTINGS.theme;
+  if (!AUDIO_QUALITIES.has(publicSettings.defaultAudioQuality)) publicSettings.defaultAudioQuality = DEFAULT_SETTINGS.defaultAudioQuality;
+  if (!VIDEO_QUALITIES.has(publicSettings.defaultVideoQuality)) publicSettings.defaultVideoQuality = DEFAULT_SETTINGS.defaultVideoQuality;
+  if (!COOKIE_BROWSERS.has(publicSettings.youtubeCookiesBrowser)) publicSettings.youtubeCookiesBrowser = '';
+  publicSettings.defaultOutputDir = String(publicSettings.defaultOutputDir || '');
+  publicSettings.telegramMaxMb = Math.max(1, Math.min(2000, Number(publicSettings.telegramMaxMb || DEFAULT_SETTINGS.telegramMaxMb)));
+  publicSettings.telegramLockChat = publicSettings.telegramLockChat !== false;
+  publicSettings.autoUpdate = publicSettings.autoUpdate !== false;
+  publicSettings.lastTempCleanupAt = publicSettings.lastTempCleanupAt || null;
+
+  return publicSettings;
+}
+
+function publicSettings() {
+  const settings = readSettings();
+  const normalized = normalizePublicSettings(settings);
+  delete normalized.botToken;
+  return normalized;
+}
+
+function updatePublicSettings(patch = {}) {
+  const current = readSettings();
+  const merged = normalizePublicSettings({
+    ...current,
+    ...patch,
+  });
+  if (current.botToken) merged.botToken = current.botToken;
+  writeSettings(merged);
+  const response = { ...merged };
+  delete response.botToken;
+  return response;
+}
+
+function rememberTempCleanup() {
+  const settings = readSettings();
+  writeSettings({
+    ...settings,
+    lastTempCleanupAt: new Date().toISOString(),
+  });
+}
+
+function cleanTempFiles() {
+  const tempRoot = os.tmpdir();
+  const prefixes = ['media_forge_bot_', 'media_forge_', 'lumafetch_', 'lumafetch-'];
+  let removed = 0;
+  let freedBytes = 0;
+
+  function entrySize(targetPath) {
+    try {
+      const stat = fs.statSync(targetPath);
+      if (stat.isFile()) return stat.size;
+      if (!stat.isDirectory()) return 0;
+      return fs.readdirSync(targetPath).reduce((total, name) => total + entrySize(path.join(targetPath, name)), 0);
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  for (const entry of fs.readdirSync(tempRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !prefixes.some((prefix) => entry.name.startsWith(prefix))) continue;
+    const target = path.join(tempRoot, entry.name);
+    try {
+      freedBytes += entrySize(target);
+      fs.rmSync(target, { recursive: true, force: true });
+      removed += 1;
+    } catch (_error) {
+      // Skip temp folders still in use by another process.
+    }
+  }
+
+  rememberTempCleanup();
+  return { removed, freedBytes, cleanedAt: new Date().toISOString() };
+}
+
+async function diagnostics() {
+  const dependencyStatus = await checkDependencies(app.getPath('userData'));
+  return {
+    appVersion: app.getVersion(),
+    userData: app.getPath('userData'),
+    tempDir: os.tmpdir(),
+    resourcesPath: process.resourcesPath,
+    dependencyStatus,
+    settings: publicSettings(),
+    updates: {
+      available: Boolean(autoUpdater),
+      configured: Boolean(autoUpdater && app.isPackaged),
+    },
+  };
+}
+
 function readSavedBotToken() {
   const settings = readSettings();
   const stored = settings.botToken;
@@ -114,7 +236,26 @@ function saveBotToken(token) {
   return { saved: true };
 }
 
-app.whenReady().then(createWindow);
+function wireAutoUpdater() {
+  if (!autoUpdater) return;
+  autoUpdater.on('checking-for-update', () => send('updates:event', { type: 'checking', message: 'Checking for updates...' }));
+  autoUpdater.on('update-available', (info) => send('updates:event', { type: 'available', message: `Update ${info.version} is available.`, info }));
+  autoUpdater.on('update-not-available', (info) => send('updates:event', { type: 'none', message: 'LumaFetch is up to date.', info }));
+  autoUpdater.on('error', (error) => send('updates:event', { type: 'error', message: error.message }));
+}
+
+app.whenReady().then(() => {
+  wireAutoUpdater();
+  try {
+    cleanTempFiles();
+  } catch (_error) {
+    // Temp cleanup is opportunistic and should never block startup.
+  }
+  createWindow();
+  if (autoUpdater && app.isPackaged && publicSettings().autoUpdate) {
+    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 4000);
+  }
+});
 
 app.on('window-all-closed', () => {
   if (botController) {
@@ -177,6 +318,25 @@ ipcMain.handle('dependencies:install', async () => {
   return status;
 });
 
+ipcMain.handle('settings:get', async () => publicSettings());
+
+ipcMain.handle('settings:save', async (_event, patch) => updatePublicSettings(patch));
+
+ipcMain.handle('settings:diagnostics', async () => diagnostics());
+
+ipcMain.handle('settings:cleanTemp', async () => cleanTempFiles());
+
+ipcMain.handle('updates:check', async () => {
+  if (!autoUpdater) {
+    return { ok: false, message: 'Updater module is not available.' };
+  }
+  if (!app.isPackaged) {
+    return { ok: false, message: 'Updates can be checked from an installed build.' };
+  }
+  const result = await autoUpdater.checkForUpdates();
+  return { ok: true, updateInfo: result && result.updateInfo ? result.updateInfo : null };
+});
+
 ipcMain.handle('bot:getSavedToken', async () => {
   return { token: readSavedBotToken() };
 });
@@ -187,6 +347,10 @@ ipcMain.handle('bot:saveToken', async (_event, { token }) => {
 
 ipcMain.handle('local:scanFolder', async (_event, { folder, recursive }) => {
   return collectMediaFiles([folder], Boolean(recursive));
+});
+
+ipcMain.handle('local:collectPaths', async (_event, { paths: inputPaths, recursive }) => {
+  return collectMediaFiles(inputPaths, Boolean(recursive));
 });
 
 ipcMain.handle('local:convert', async (_event, { files, outputDir, bitrate }) => {
@@ -210,46 +374,49 @@ ipcMain.handle('local:cancel', async () => {
 
 ipcMain.handle('youtube:analyze', async (_event, { url }) => {
   const tools = await getTools();
+  const settings = publicSettings();
   youtubeCancel = createCancelToken();
-  return analyzeVideo(tools, url, youtubeCancel);
+  return analyzeVideo(tools, url, youtubeCancel, { cookiesBrowser: settings.youtubeCookiesBrowser });
 });
 
 ipcMain.handle('youtube:downloadAudio', async (_event, { url, outputDir, bitrate, playlist }) => {
   const tools = await getTools();
+  const settings = publicSettings();
   youtubeCancel = createCancelToken();
   if (playlist) {
-    const flat = await getPlaylistFlat(tools, url, youtubeCancel);
-    if (youtubeCancel.cancelled) throw new Error('Cancelled');
-    const checked = await checkPlaylistItems(tools, flat.entries, {
-      cancelToken: youtubeCancel,
-      onProgress: (payload) => send('youtube:event', { type: 'playlist-check', ...payload }),
-    });
+    const flat = await getPlaylistFlat(tools, url, youtubeCancel, { cookiesBrowser: settings.youtubeCookiesBrowser });
     if (youtubeCancel.cancelled) throw new Error('Cancelled');
     send('youtube:event', {
       type: 'playlist-ready',
       total: flat.total,
-      available: checked.available.length,
-      unavailable: checked.unavailable.length,
+      available: flat.entries.length,
+      unavailable: 0,
     });
     const results = [];
-    for (let index = 0; index < checked.available.length; index += 1) {
+    for (let index = 0; index < flat.entries.length; index += 1) {
       if (youtubeCancel.cancelled) break;
-      const item = checked.available[index];
+      const item = flat.entries[index];
       send('youtube:event', {
         type: 'playlist-item',
         index: index + 1,
-        total: checked.available.length,
+        total: flat.entries.length,
         title: item.title,
       });
-      const result = await downloadAudio(tools, {
-        url: item.url,
-        outputDir,
-        bitrate,
-        noPlaylist: true,
-        cancelToken: youtubeCancel,
-        onProgress: (payload) => send('youtube:event', { type: 'download', ...payload }),
-      });
-      results.push(result);
+      try {
+        const result = await downloadAudio(tools, {
+          url: item.url,
+          outputDir,
+          bitrate,
+          noPlaylist: true,
+          cancelToken: youtubeCancel,
+          cookiesBrowser: settings.youtubeCookiesBrowser,
+          onProgress: (payload) => send('youtube:event', { type: 'download', ...payload }),
+        });
+        results.push(result);
+      } catch (error) {
+        if (/cancelled/i.test(error.message)) throw error;
+        send('youtube:event', { type: 'download', stage: `Skipped: ${error.message}`, percent: null });
+      }
     }
     if (youtubeCancel.cancelled) throw new Error('Cancelled');
     return { ok: true, files: results.map((item) => item.filePath) };
@@ -261,6 +428,7 @@ ipcMain.handle('youtube:downloadAudio', async (_event, { url, outputDir, bitrate
     bitrate,
     noPlaylist: true,
     cancelToken: youtubeCancel,
+    cookiesBrowser: settings.youtubeCookiesBrowser,
     onProgress: (payload) => send('youtube:event', { type: 'download', ...payload }),
   });
   return { ok: true, filePath: result.filePath };
@@ -268,12 +436,14 @@ ipcMain.handle('youtube:downloadAudio', async (_event, { url, outputDir, bitrate
 
 ipcMain.handle('youtube:downloadVideo', async (_event, { url, outputDir, quality }) => {
   const tools = await getTools();
+  const settings = publicSettings();
   youtubeCancel = createCancelToken();
   const result = await downloadVideo(tools, {
     url,
     outputDir,
     quality,
     cancelToken: youtubeCancel,
+    cookiesBrowser: settings.youtubeCookiesBrowser,
     onProgress: (payload) => send('youtube:event', { type: 'download', ...payload }),
   });
   return { ok: true, filePath: result.filePath };
@@ -287,6 +457,7 @@ ipcMain.handle('youtube:cancel', async () => {
 
 ipcMain.handle('bot:connect', async (_event, options) => {
   const tools = await getTools();
+  const settings = publicSettings();
   if (botController) {
     botController.stop();
   }
@@ -296,6 +467,7 @@ ipcMain.handle('bot:connect', async (_event, options) => {
     bitrate: options.bitrate,
     maxFileMb: Number(options.maxFileMb || 50),
     lockFirstChat: Boolean(options.lockFirstChat),
+    cookiesBrowser: settings.youtubeCookiesBrowser,
     sendEvent: (payload) => send('bot:event', payload),
   });
   const info = await botController.start();

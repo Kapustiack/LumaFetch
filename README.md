@@ -1,76 +1,82 @@
-<div align="center">
-  
 # LumaFetch
 
-**Minimal dark desktop app for media fetching, conversion, and Telegram delivery.**
+Minimal Windows media desk for converting local files, fetching web media, and relaying downloads through a Telegram bot.
 
-</div>
+![LumaFetch overview](docs/screenshots/app-overview.svg)
 
-<br>
+## Highlights
 
-<div align="center">
-  
-## 🌟 What It Does
+- Convert local media files to MP3 with batch progress.
+- Drop files or whole folders into Studio.
+- Paste one link or many links into Fetch and run them as a queue.
+- Download audio from YouTube, YouTube Music, TikTok, Instagram, SoundCloud, and other yt-dlp supported sites.
+- Download videos with real available quality selection after analysis.
+- Run a Telegram bot that sends MP3/MP4 files back to your chat and deletes local temporary files after upload.
+- Telegram supports `/start`, `/help`, `/status`, `/pause`, `/resume`, `/cancel`, `/playlist <link>`, `/video <link>`, and plain links for MP3.
+- Telegram queue messages include pause/resume/cancel controls, and failed items can be retried from a button.
+- Settings persist theme, output folder, default quality, Telegram limits, cookies browser, and update preference.
+- Dependency setup checks ffmpeg and yt-dlp on launch and can install missing tools.
+- Temporary LumaFetch download folders are cleaned automatically on startup and manually from Settings.
 
-LumaFetch is an all-in-one media tool that lets you effortlessly download, convert, and manage audio/video from the web or your local machine.
+## Screenshots And Demo Assets
 
-</div>
+Store public screenshots and GIFs in `docs/screenshots/`:
 
-### 🚀 Key Features
+- `app-overview.svg` is a lightweight visual preview committed with the repo.
+- Recommended release screenshots: Studio batch conversion, Fetch queue, Relay bot controls, Settings diagnostics.
+- Recommended GIFs: drag-drop conversion, Telegram playlist queue, update check.
 
-- **Format Conversion:** Convert any local media file to MP3. Supported formats include: `.webm`, `.mp4`, `.mkv`, `.mov`, `.avi`, `.m4a`, `.wav`, `.flac`, `.ogg`, `.opus`, `.aac`, and `.mp3`.
-- **Media Downloader:** Download videos and music from social links directly as MP3s.
-- **Real Qualities:** Detects and downloads videos at their true, available qualities.
-- **Wide Platform Support:** Compatible with YouTube, YouTube Music, TikTok, Instagram, SoundCloud, and hundreds of other services (powered by `yt-dlp`).
-- **Telegram Bot Integration:** Run a local Telegram bot to remotely command the app! The bot can send you MP3s, full playlists, and videos right into your chat.
-- **Clean Up:** Automatically deletes Telegram temporary files after they are sent to save disk space.
-- **Auto-Setup:** Checks for necessary dependencies (`ffmpeg` and `yt-dlp`) on every launch. If they are missing, a handy setup window with an `Install all` button takes care of it for you.
-- **Smart Sourcing:** TikTok downloads request the clean source stream when available (Note: DRM-protected media cannot be bypassed).
+## Development
 
----
-
-<div align="center">
-  
-## 🛠️ How To Use
-
-</div>
-
-### 💻 Running the App Locally
-To run the project in a development environment:
 ```powershell
 npm install
 npm start
 ```
 
-### 📦 Building the Windows Executable
-To package the app into an `.exe` file for Windows:
+## Build
+
 ```powershell
 npm run build
 ```
-The resulting `.exe` installer will be located in the `release/` folder.
 
-**Note on assets:**
-- The Windows app icon is located at: `electron_app\assets\lumafetch-icon.ico`
-- Bundled tool binaries are stored in: `electron_app\vendor`
+The Windows installer is written to `release/`. Do not commit installers or build output to the source repo.
 
----
+## GitHub Releases And Updates
 
-<div align="center">
+LumaFetch is configured for GitHub Releases through `electron-updater`.
 
-## 🤖 Telegram Bot Commands
+1. Build the installer.
+2. Create a GitHub release such as `v0.4.0`.
+3. Upload the generated installer and update metadata from `release/`.
+4. Installed builds can check for updates from Settings.
 
-Once your Telegram bot is configured and running, you can use the following commands in your chat:
+## Code Signing
 
-</div>
+Unsigned Windows installers work, but Windows SmartScreen may warn new users. For a public release, use a real code signing certificate and configure Electron Builder with:
 
-- `/start` or `/help` - Shows the command guide.
-- `<media link>` - Simply paste a link! Downloads a single supported link as MP3 and sends it back to you.
-- `/playlist <playlist link>` - Checks the playlist size, verifies which items can download, then sends the MP3 files one by one.
-- `/video <video link>` - Shows the real available video qualities. Reply to it with `/quality 720p` (or any other listed quality) to download it. The bot will download, send it to you, and clean up the local file afterwards.
+```powershell
+$env:CSC_LINK="C:\path\to\certificate.pfx"
+$env:CSC_KEY_PASSWORD="certificate-password"
+npm run build
+```
 
-*⚠️ Disclaimer: Please use only for media you own or have permission to download.*
+Keep certificate files and passwords out of git. After signing, test the installer on a clean Windows user account before publishing.
 
-<div align="center">
-  <br>
-  Made with ❤️
-</div>
+## Telegram Bot
+
+Create a bot with BotFather, paste the token into Relay, optionally save it, then click Connect.
+
+Commands:
+
+- `/start` or `/help` shows the guide.
+- Plain media link sends MP3.
+- `/playlist <link>` queues every item and asks for format and quality with buttons.
+- `/video <link>` asks for MP3/MP4 and real video qualities with buttons.
+- `/status` shows pause, resume, and cancel buttons.
+- `/pause`, `/resume`, and `/cancel` control the queue.
+
+For YouTube sign-in or bot verification errors, set a cookies browser in Settings so yt-dlp can use your browser session.
+
+## Legal
+
+Use LumaFetch only for media you own, have permission to download, or are legally allowed to archive. DRM-protected media is not supported.

@@ -1,0 +1,62 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" rx="18" fill="#0A0D12"/>
+  <rect x="0.5" y="0.5" width="1279" height="719" rx="17.5" stroke="#252C36"/>
+  <rect x="24" y="24" width="224" height="672" rx="16" fill="#0F131A" stroke="#252C36"/>
+  <circle cx="58" cy="62" r="18" fill="#72FFD5"/>
+  <path d="M58 45V79M48 69L58 79L68 69" stroke="#0A0D12" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="86" y="58" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="22" font-weight="800">LumaFetch</text>
+  <text x="86" y="82" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="13">Media desk</text>
+  <rect x="44" y="154" width="184" height="64" rx="12" fill="#72FFD5"/>
+  <text x="62" y="184" fill="#06100D" font-family="Inter,Segoe UI,Arial" font-size="18" font-weight="800">Studio</text>
+  <text x="62" y="204" fill="#2B574B" font-family="Inter,Segoe UI,Arial" font-size="12">Convert files</text>
+  <rect x="44" y="232" width="184" height="64" rx="12" fill="#151A22" stroke="#252C36"/>
+  <text x="62" y="262" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="18" font-weight="800">Fetch</text>
+  <text x="62" y="282" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12">Links and queues</text>
+  <rect x="44" y="310" width="184" height="64" rx="12" fill="#151A22" stroke="#252C36"/>
+  <text x="62" y="340" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="18" font-weight="800">Relay</text>
+  <text x="62" y="360" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12">Telegram bot</text>
+  <rect x="44" y="596" width="184" height="68" rx="12" fill="#151A22" stroke="#252C36"/>
+  <text x="62" y="626" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="18" font-weight="800">Settings</text>
+  <text x="62" y="646" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12">Defaults and tools</text>
+  <text x="288" y="68" fill="#72FFD5" font-family="Inter,Segoe UI,Arial" font-size="12" font-weight="900" letter-spacing="4">STUDIO</text>
+  <text x="288" y="108" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="34" font-weight="800">Local conversion</text>
+  <rect x="288" y="136" width="920" height="86" rx="14" fill="#151A22" stroke="#252C36"/>
+  <text x="312" y="170" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12" font-weight="800">OUTPUT FOLDER</text>
+  <rect x="312" y="182" width="470" height="24" rx="8" fill="#0C1118" stroke="#252C36"/>
+  <rect x="804" y="174" width="118" height="40" rx="10" fill="#1A202A" stroke="#252C36"/>
+  <text x="836" y="199" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">Browse</text>
+  <rect x="942" y="174" width="118" height="40" rx="10" fill="#72FFD5"/>
+  <text x="970" y="199" fill="#06100D" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="800">Convert</text>
+  <rect x="288" y="246" width="650" height="342" rx="14" fill="#151A22" stroke="#252C36"/>
+  <rect x="288" y="246" width="650" height="54" rx="14" fill="#151A22"/>
+  <line x1="288" y1="300" x2="938" y2="300" stroke="#252C36"/>
+  <text x="312" y="280" fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="17" font-weight="800">8 files</text>
+  <text x="820" y="280" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="14">Converting</text>
+  <g fill="#1A202A" stroke="#252C36">
+    <rect x="312" y="324" width="602" height="46" rx="10"/>
+    <rect x="312" y="386" width="602" height="46" rx="10"/>
+    <rect x="312" y="448" width="602" height="46" rx="10"/>
+    <rect x="312" y="510" width="602" height="46" rx="10"/>
+  </g>
+  <g fill="#F3F5EF" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">
+    <text x="332" y="353">track_01.webm</text>
+    <text x="332" y="415">podcast_clip.mp4</text>
+    <text x="332" y="477">voice_note.wav</text>
+    <text x="332" y="539">set_recording.mkv</text>
+  </g>
+  <g fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12">
+    <text x="332" y="366">Ready for MP3 export</text>
+    <text x="332" y="428">Converting to 192k</text>
+    <text x="332" y="490">Queued</text>
+    <text x="332" y="552">Queued</text>
+  </g>
+  <rect x="960" y="246" width="248" height="342" rx="14" fill="#151A22" stroke="#252C36"/>
+  <text x="988" y="292" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12" font-weight="800">CURRENT FILE</text>
+  <rect x="988" y="310" width="192" height="10" rx="5" fill="#0C1118"/>
+  <rect x="988" y="310" width="136" height="10" rx="5" fill="#72FFD5"/>
+  <text x="988" y="370" fill="#98A19B" font-family="Inter,Segoe UI,Arial" font-size="12" font-weight="800">TOTAL BATCH</text>
+  <rect x="988" y="388" width="192" height="10" rx="5" fill="#0C1118"/>
+  <rect x="988" y="388" width="92" height="10" rx="5" fill="#FFC06F"/>
+  <rect x="988" y="480" width="192" height="44" rx="10" fill="#72FFD5"/>
+  <text x="1047" y="508" fill="#06100D" font-family="Inter,Segoe UI,Arial" font-size="16" font-weight="800">Convert</text>
+</svg>
