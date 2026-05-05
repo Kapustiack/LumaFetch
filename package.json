@@ -1,0 +1,57 @@
+{
+  "name": "lumafetch",
+  "productName": "LumaFetch",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Minimal media downloader, converter, and Telegram delivery app.",
+  "main": "electron_app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "app.lumafetch.desktop",
+    "productName": "LumaFetch",
+    "directories": {
+      "output": "release"
+    },
+    "afterPack": "build/afterPack.js",
+    "toolsets": {
+      "winCodeSign": "1.1.0"
+    },
+    "files": [
+      "electron_app/**/*",
+      "!electron_app/vendor/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "electron_app/vendor",
+        "to": "tools",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "electron_app/assets/lumafetch-icon.ico",
+      "target": "nsis",
+      "signAndEditExecutable": false,
+      "signExts": [
+        "!.exe"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "installerIcon": "electron_app/assets/lumafetch-icon.ico",
+      "uninstallerIcon": "electron_app/assets/lumafetch-icon.ico",
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^37.6.0",
+    "electron-builder": "^26.0.12"
+  }
+}

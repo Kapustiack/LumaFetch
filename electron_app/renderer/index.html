@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LumaFetch</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="setupOverlay" class="setup-overlay hidden">
+      <div class="setup-card">
+        <img src="../assets/lumafetch-icon.png" alt="" />
+        <div>
+          <p class="eyebrow">Setup</p>
+          <h2>Media tools required</h2>
+          <p id="setupStatus" class="muted">Checking ffmpeg and yt-dlp...</p>
+        </div>
+        <progress id="setupProgress" max="100" value="0"></progress>
+        <div class="setup-actions">
+          <button id="setupInstall" class="primary">Install all</button>
+          <button id="setupRetry" class="ghost">Retry</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <img src="../assets/lumafetch-icon.png" alt="" />
+          <div>
+            <h1>LumaFetch</h1>
+            <span>Media desk</span>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-button active" data-tab="local">
+            <span>Studio</span>
+            <small>Convert files</small>
+          </button>
+          <button class="nav-button" data-tab="youtube">
+            <span>Fetch</span>
+            <small>Links and playlists</small>
+          </button>
+          <button class="nav-button" data-tab="bot">
+            <span>Relay</span>
+            <small>Telegram bot</small>
+          </button>
+        </nav>
+
+        <div class="sidebar-card">
+          <span>Tools</span>
+          <strong id="toolStatus">Checking...</strong>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <section id="local" class="panel active">
+          <header class="panel-header">
+            <div>
+              <p class="eyebrow">Studio</p>
+              <h2>Local conversion</h2>
+            </div>
+            <div class="cluster">
+              <button id="localAddFiles" class="ghost">Add files</button>
+              <button id="localAddFolder" class="ghost">Add folder</button>
+              <button id="localClear" class="ghost danger">Clear</button>
+            </div>
+          </header>
+
+          <div class="toolbar-card">
+            <label class="field grow">
+              <span>Output folder</span>
+              <div class="input-action">
+                <input id="localOutput" readonly placeholder="Choose destination" />
+                <button id="localOutputBrowse" class="small">Browse</button>
+              </div>
+            </label>
+            <label class="field narrow">
+              <span>MP3 quality</span>
+              <select id="localQuality">
+                <option>128k</option>
+                <option selected>192k</option>
+                <option>256k</option>
+                <option>320k</option>
+              </select>
+            </label>
+            <label class="switch-row">
+              <input id="localRecursive" type="checkbox" checked />
+              <span>Subfolders</span>
+            </label>
+          </div>
+
+          <div class="work-grid">
+            <div class="card queue-card">
+              <div class="card-head">
+                <strong id="localCount">0 files</strong>
+                <span id="localStatus">Idle</span>
+              </div>
+              <div id="localList" class="file-list"></div>
+            </div>
+
+            <aside class="card progress-card">
+              <div class="metric">
+                <span>Current file</span>
+                <progress id="localCurrentProgress" max="100" value="0"></progress>
+              </div>
+              <div class="metric">
+                <span>Total batch</span>
+                <progress id="localOverallProgress" max="100" value="0"></progress>
+              </div>
+              <button id="localStart" class="primary wide-button">Convert</button>
+              <button id="localCancel" class="ghost danger wide-button" disabled>Cancel</button>
+            </aside>
+          </div>
+        </section>
+
+        <section id="youtube" class="panel">
+          <header class="panel-header compact-header">
+            <div>
+              <p class="eyebrow">Fetch</p>
+              <h2>Downloader</h2>
+            </div>
+            <div class="segmented">
+              <button class="mode-button active" data-mode="audio">Audio</button>
+              <button class="mode-button" data-mode="video">Video</button>
+            </div>
+          </header>
+
+          <div class="card form-card fetch-form">
+            <label class="field full">
+              <span>Link</span>
+              <input id="youtubeUrl" placeholder="Paste a supported link" />
+            </label>
+            <label class="field full">
+              <span>Save to</span>
+              <div class="input-action">
+                <input id="youtubeOutput" readonly placeholder="Choose destination" />
+                <button id="youtubeOutputBrowse" class="small">Browse</button>
+              </div>
+            </label>
+            <label class="field audio-only">
+              <span>MP3 quality</span>
+              <select id="youtubeAudioQuality">
+                <option>128k</option>
+                <option selected>192k</option>
+                <option>256k</option>
+                <option>320k</option>
+              </select>
+            </label>
+            <label class="switch-row audio-only">
+              <input id="youtubePlaylist" type="checkbox" />
+              <span>Playlist</span>
+            </label>
+            <label class="field video-only hidden">
+              <span>Quality</span>
+              <select id="youtubeVideoQuality"></select>
+            </label>
+            <div class="fetch-actions">
+              <button id="youtubeAnalyze" class="ghost">Analyze</button>
+              <button id="youtubeDownload" class="primary">Download</button>
+              <button id="youtubeCancel" class="ghost danger" disabled>Cancel</button>
+            </div>
+          </div>
+
+          <div class="card status-card fetch-status">
+            <div>
+              <strong id="youtubeTitle">Ready</strong>
+              <span id="youtubeStatus">Waiting for a link</span>
+            </div>
+            <progress id="youtubeProgress" max="100" value="0"></progress>
+          </div>
+
+          <div class="platform-strip">
+            <span>YouTube</span>
+            <span>YouTube Music</span>
+            <span>TikTok</span>
+            <span>Instagram</span>
+            <span>SoundCloud</span>
+          </div>
+        </section>
+
+        <section id="bot" class="panel">
+          <header class="panel-header">
+            <div>
+              <p class="eyebrow">Relay</p>
+              <h2>Telegram bot</h2>
+            </div>
+            <div class="cluster">
+              <button id="botConnect" class="primary">Connect</button>
+              <button id="botDisconnect" class="ghost danger" disabled>Disconnect</button>
+            </div>
+          </header>
+
+          <div class="card form-card bot-form">
+            <label class="field token-field">
+              <span>Bot token</span>
+              <div class="input-action">
+                <input id="botToken" type="password" placeholder="123456:ABC..." />
+                <button id="botSaveToken" class="small">Save</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>MP3 quality</span>
+              <select id="botQuality">
+                <option>128k</option>
+                <option selected>192k</option>
+                <option>256k</option>
+                <option>320k</option>
+              </select>
+            </label>
+            <label class="field mini">
+              <span>Max MB</span>
+              <input id="botMaxMb" type="number" min="1" max="2000" value="50" />
+            </label>
+            <label class="switch-row">
+              <input id="botLock" type="checkbox" checked />
+              <span>Lock chat</span>
+            </label>
+          </div>
+
+          <div class="relay-grid">
+            <div class="card command-card">
+              <div class="card-head">
+                <strong>Commands</strong>
+                <span>/help</span>
+              </div>
+              <p>/start or /help</p>
+              <p>link -> MP3</p>
+              <p>/playlist link -> MP3 batch</p>
+              <p>/video link -> choose /quality</p>
+            </div>
+            <div class="card bot-state">
+              <strong id="botStatus">Disconnected</strong>
+              <span id="botChat">No chat locked</span>
+            </div>
+          </div>
+
+          <div class="card activity-card">
+            <div class="card-head">
+              <strong>Activity</strong>
+              <span id="botHint">Ready</span>
+            </div>
+            <div id="botActivity" class="activity-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>
