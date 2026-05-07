@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  lumafetch-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+    working_dir: /app
+    command: npm start
+
+  lumafetch-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./release:/app/release
+    environment:
+      - NODE_ENV=production
+    working_dir: /app
+    command: npm run build
+
+volumes:
+  node_modules:
