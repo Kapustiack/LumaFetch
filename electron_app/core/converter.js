@@ -21,13 +21,17 @@ function collectMediaFiles(paths, recursive = true) {
   }
 
   function walk(dirPath) {
-    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
-      const full = path.join(dirPath, entry.name);
-      if (entry.isDirectory() && recursive) {
-        walk(full);
-      } else if (entry.isFile()) {
-        addFile(full);
+    try {
+      for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+        const full = path.join(dirPath, entry.name);
+        if (entry.isDirectory() && recursive) {
+          walk(full);
+        } else if (entry.isFile()) {
+          addFile(full);
+        }
       }
+    } catch (_error) {
+      // Skip folders the app cannot read.
     }
   }
 

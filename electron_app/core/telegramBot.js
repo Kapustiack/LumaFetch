@@ -17,6 +17,11 @@ const URL_RE = /https?:\/\/[^\s<>()]+/gi;
 const AUDIO_QUALITIES = ['128k', '192k', '256k', '320k'];
 const PLAYLIST_VIDEO_QUALITIES = ['best', '1080p', '720p', '480p', '360p'];
 
+function clampMaxFileMb(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(2000, parsed)) : 50;
+}
+
 function extractUrls(text) {
   return [...String(text || '').matchAll(URL_RE)].map((match) => match[0].replace(/[.,;:!?)\]"']+$/g, ''));
 }
@@ -109,7 +114,7 @@ class TelegramBotController {
     this.api = new TelegramApi(token);
     this.tools = tools;
     this.bitrate = bitrate || '192k';
-    this.maxFileMb = Math.max(1, Number(maxFileMb || 50));
+    this.maxFileMb = clampMaxFileMb(maxFileMb);
     this.lockFirstChat = lockFirstChat;
     this.cookiesBrowser = cookiesBrowser || '';
     this.sendEvent = sendEvent;
@@ -625,7 +630,7 @@ class TelegramBotController {
   }
 
   tempDir() {
-    const dir = path.join(os.tmpdir(), `media_forge_bot_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+    const dir = path.join(os.tmpdir(), `lumafetch_bot_${Date.now()}_${Math.random().toString(16).slice(2)}`);
     ensureDir(dir);
     return dir;
   }

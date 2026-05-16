@@ -106,7 +106,7 @@ class TelegramApi {
 
   uploadFile(method, chatId, fileField, filePath, fields = {}, onProgress, cancelToken = null) {
     return new Promise((resolve, reject) => {
-      const boundary = `----MediaForge${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+      const boundary = `----LumaFetch${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
       const safeName = path.basename(filePath).replace(/["\r\n]/g, ' ');
       const fileSize = fs.statSync(filePath).size;
       const chunks = [];

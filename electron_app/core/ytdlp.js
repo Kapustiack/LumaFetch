@@ -16,6 +16,12 @@ function cookiesArgs(cookiesBrowser) {
   return browser ? ['--cookies-from-browser', browser] : [];
 }
 
+function normalizeAudioQuality(bitrate) {
+  const value = String(bitrate || '192k').trim().toLowerCase();
+  const match = /^(\d+)\s*k?$/.exec(value);
+  return match ? `${match[1]}K` : '192K';
+}
+
 function runYtdlpJson(tools, args, timeoutMs = 120000, cancelToken = null) {
   return new Promise((resolve, reject) => {
     const child = spawn(tools.ytdlpCommand, pythonArgs(tools, args), { windowsHide: true });
@@ -238,7 +244,7 @@ async function downloadAudio(tools, options) {
     '--audio-format',
     'mp3',
     '--audio-quality',
-    String(bitrate || '192k').replace(/k$/i, ''),
+    normalizeAudioQuality(bitrate),
     ...(noPlaylist ? ['--no-playlist'] : []),
     '-o',
     path.join(outputDir, '%(title).180B [%(id)s].%(ext)s'),
@@ -306,4 +312,5 @@ module.exports = {
   downloadAudio,
   downloadVideo,
   formatSelectorForQuality,
+  normalizeAudioQuality,
 };

@@ -48,6 +48,12 @@ const AUDIO_QUALITIES = new Set(['128k', '192k', '256k', '320k']);
 const VIDEO_QUALITIES = new Set(['best', '1080p', '720p', '480p', '360p']);
 const COOKIE_BROWSERS = new Set(['', 'chrome', 'edge', 'firefox', 'brave', 'opera', 'vivaldi', 'chromium']);
 
+function clampNumber(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
 function createWindow() {
   Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
@@ -103,17 +109,20 @@ function writeSettings(settings) {
 }
 
 function normalizePublicSettings(settings) {
-  const publicSettings = {
-    ...DEFAULT_SETTINGS,
-    ...settings,
-  };
+  const source = settings || {};
+  const publicSettings = { ...DEFAULT_SETTINGS };
+  for (const key of Object.keys(DEFAULT_SETTINGS)) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      publicSettings[key] = source[key];
+    }
+  }
 
   if (!THEMES.has(publicSettings.theme)) publicSettings.theme = DEFAULT_SETTINGS.theme;
   if (!AUDIO_QUALITIES.has(publicSettings.defaultAudioQuality)) publicSettings.defaultAudioQuality = DEFAULT_SETTINGS.defaultAudioQuality;
   if (!VIDEO_QUALITIES.has(publicSettings.defaultVideoQuality)) publicSettings.defaultVideoQuality = DEFAULT_SETTINGS.defaultVideoQuality;
   if (!COOKIE_BROWSERS.has(publicSettings.youtubeCookiesBrowser)) publicSettings.youtubeCookiesBrowser = '';
   publicSettings.defaultOutputDir = String(publicSettings.defaultOutputDir || '');
-  publicSettings.telegramMaxMb = Math.max(1, Math.min(2000, Number(publicSettings.telegramMaxMb || DEFAULT_SETTINGS.telegramMaxMb)));
+  publicSettings.telegramMaxMb = clampNumber(publicSettings.telegramMaxMb, DEFAULT_SETTINGS.telegramMaxMb, 1, 2000);
   publicSettings.telegramLockChat = publicSettings.telegramLockChat !== false;
   publicSettings.autoUpdate = publicSettings.autoUpdate !== false;
   publicSettings.lastTempCleanupAt = publicSettings.lastTempCleanupAt || null;
@@ -151,7 +160,7 @@ function rememberTempCleanup() {
 
 function cleanTempFiles() {
   const tempRoot = os.tmpdir();
-  const prefixes = ['media_forge_bot_', 'media_forge_', 'lumafetch_', 'lumafetch-'];
+  const prefixes = ['lumafetch_bot_', 'lumafetch_', 'lumafetch-'];
   let removed = 0;
   let freedBytes = 0;
 
@@ -465,13 +474,18 @@ ipcMain.handle('bot:connect', async (_event, options) => {
     token: options.token,
     tools,
     bitrate: options.bitrate,
-    maxFileMb: Number(options.maxFileMb || 50),
+    maxFileMb: options.maxFileMb,
     lockFirstChat: Boolean(options.lockFirstChat),
     cookiesBrowser: settings.youtubeCookiesBrowser,
     sendEvent: (payload) => send('bot:event', payload),
   });
-  const info = await botController.start();
-  return info;
+  try {
+    const info = await botController.start();
+    return info;
+  } catch (error) {
+    botController = null;
+    throw error;
+  }
 });
 
 ipcMain.handle('bot:disconnect', async () => {

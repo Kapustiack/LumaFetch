@@ -22,7 +22,7 @@ exports.default = async function afterPack(context) {
   const rceditPath = path.join(context.packager.projectDir, 'node_modules', 'electron-winstaller', 'vendor', 'rcedit.exe');
 
   if (!fs.existsSync(exePath) || !fs.existsSync(iconPath) || !fs.existsSync(rceditPath)) {
-    throw new Error('Could not stamp Windows icon: missing exe, icon, or rcedit.');
+    return;
   }
 
   await run(rceditPath, [

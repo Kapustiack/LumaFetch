@@ -219,7 +219,7 @@ This document outlines potential improvements, new features, and enhancements fo
   - Arabic
 - [ ] **RTL Support**: Right-to-left language support
 - [ ] **Locale-specific Formats**: Date, time, number formatting
-- [ ] **Community Translations**: Crowdin/Weblate integration
+- [ ] **Translation Management**: Centralized workflow for language files
 
 ---
 
@@ -230,7 +230,7 @@ This document outlines potential improvements, new features, and enhancements fo
 - [ ] **Performance Tests**: Benchmark download/conversion speeds
 - [ ] **Security Scans**: Automated dependency vulnerability scanning
 - [ ] **Cross-platform Testing**: Test on multiple OS versions
-- [ ] **User Testing Program**: Beta tester community
+- [ ] **Beta Testing Channel**: Early builds for release validation
 
 ---
 
@@ -241,7 +241,7 @@ This document outlines potential improvements, new features, and enhancements fo
   - Rollback capability
   - Update scheduling
   - Release notes in-app
-- [ ] **Plugin System**: Community-developed extensions
+- [ ] **Plugin System**: Optional extension modules
 - [ ] **Theme Marketplace**: User-created themes
 - [ ] **Portable Settings**: Store settings alongside executable
 
@@ -271,24 +271,17 @@ This document outlines potential improvements, new features, and enhancements fo
 1. Video editing features
 2. Voice control
 3. Plugin system
-4. AI-powered features (auto-tagging, quality enhancement)
-5. Social features (share playlists, public profiles)
+4. Social features (share playlists, public profiles)
 
 ---
 
 ## 💡 **Future Vision Ideas**
 
-- **AI-Powered Features**:
-  - Auto-generate chapters from video content
-  - Speech-to-text for automatic subtitles
-  - Smart quality selection based on content type
-  - Content-aware trimming (remove intros/outros)
-
 - **Social Features**:
   - Share download playlists
   - Public profile for curators
   - Follow favorite content creators
-  - Community presets and configurations
+  - Shared presets and configurations
 
 - **Enterprise Features**:
   - Team licenses
@@ -298,9 +291,9 @@ This document outlines potential improvements, new features, and enhancements fo
 
 ---
 
-## 📝 **How to Contribute Ideas**
+## 📝 **How to Track Ideas**
 
-Have an idea for improvement? Please:
+For improvement planning:
 1. Check if it's already listed above
 2. Search existing GitHub issues
 3. Create a new issue with detailed description

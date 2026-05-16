@@ -6,7 +6,7 @@ function on(channel, callback) {
   return () => ipcRenderer.removeListener(channel, handler);
 }
 
-contextBridge.exposeInMainWorld('mediaForge', {
+contextBridge.exposeInMainWorld('lumaFetch', {
   selectFiles: () => ipcRenderer.invoke('dialog:files'),
   selectFolder: () => ipcRenderer.invoke('dialog:folder'),
   selectOutputFolder: () => ipcRenderer.invoke('dialog:outputFolder'),

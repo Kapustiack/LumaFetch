@@ -186,7 +186,12 @@ function downloadFile(url, destination, onProgress) {
     const request = https.get(requestUrl, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
-        downloadFile(response.headers.location, destination, onProgress).then(resolve, reject);
+        if (!response.headers.location) {
+          reject(new Error('Download redirect did not include a location.'));
+          return;
+        }
+        const redirectUrl = new URL(response.headers.location, requestUrl).toString();
+        downloadFile(redirectUrl, destination, onProgress).then(resolve, reject);
         return;
       }
       if (response.statusCode !== 200) {

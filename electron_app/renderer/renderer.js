@@ -161,7 +161,7 @@ function addActivity(title, detail, status) {
 }
 
 async function chooseOutput(input) {
-  const folder = await window.mediaForge.selectOutputFolder();
+  const folder = await window.lumaFetch.selectOutputFolder();
   if (folder) input.value = folder;
 }
 
@@ -218,7 +218,7 @@ function collectSettings() {
 
 async function loadSettings() {
   try {
-    const settings = await window.mediaForge.getSettings();
+    const settings = await window.lumaFetch.getSettings();
     applySettings(settings);
   } catch (error) {
     toast('Settings failed', friendlyError(error), 'error');
@@ -228,7 +228,7 @@ async function loadSettings() {
 async function saveSettings() {
   $('#settingsSave').disabled = true;
   try {
-    const settings = await window.mediaForge.saveSettings(collectSettings());
+    const settings = await window.lumaFetch.saveSettings(collectSettings());
     applySettings(settings);
     setText('#settingsHint', 'Saved');
     toast('Settings saved', 'Defaults will be used on future launches.');
@@ -262,7 +262,7 @@ async function refreshDiagnostics() {
   if (!$('#settingsDiagnostics')) return;
   try {
     $('#settingsDiagnostics').textContent = 'Refreshing diagnostics...';
-    renderDiagnostics(await window.mediaForge.getDiagnostics());
+    renderDiagnostics(await window.lumaFetch.getDiagnostics());
   } catch (error) {
     $('#settingsDiagnostics').textContent = friendlyError(error);
   }
@@ -270,7 +270,7 @@ async function refreshDiagnostics() {
 
 async function loadSavedBotToken() {
   try {
-    const saved = await window.mediaForge.getSavedBotToken();
+    const saved = await window.lumaFetch.getSavedBotToken();
     if (saved && saved.token) {
       $('#botToken').value = saved.token;
       setText('#botHint', 'Saved token loaded');
@@ -289,7 +289,7 @@ async function checkDependenciesOnLaunch() {
   setText('#toolStatus', 'Checking...');
   setText('#setupStatus', 'Checking ffmpeg and yt-dlp...');
   try {
-    const status = await window.mediaForge.checkDependencies();
+    const status = await window.lumaFetch.checkDependencies();
     if (status.ok) {
       await sleep(Math.max(0, 1400 - (Date.now() - startedAt)));
       $('#setupProgress').value = 100;
@@ -331,7 +331,7 @@ function wireSetup() {
     $('#setupProgress').value = 1;
     setText('#setupStatus', 'Starting installation...');
     try {
-      const status = await window.mediaForge.installDependencies();
+      const status = await window.lumaFetch.installDependencies();
       if (status.ok) {
         $('#setupProgress').value = 100;
         setText('#setupStatus', 'Installed. LumaFetch is ready.');
@@ -353,7 +353,7 @@ function wireSetup() {
       refreshDiagnostics();
     }
   });
-  window.mediaForge.onDependencyEvent((event) => {
+  window.lumaFetch.onDependencyEvent((event) => {
     $('#setupProgress').value = event.percent || 0;
     setText('#setupStatus', event.message || 'Installing...');
     setText('#toolStatus', event.message || 'Installing...');
@@ -362,13 +362,13 @@ function wireSetup() {
 
 function wireLocal() {
   $('#localAddFiles').addEventListener('click', async () => {
-    addLocalFiles(await window.mediaForge.selectFiles());
+    addLocalFiles(await window.lumaFetch.selectFiles());
   });
   $('#localAddFolder').addEventListener('click', async () => {
-    const folder = await window.mediaForge.selectFolder();
+    const folder = await window.lumaFetch.selectFolder();
     if (!folder) return;
     setText('#localStatus', 'Scanning...');
-    const files = await window.mediaForge.scanFolder({
+    const files = await window.lumaFetch.scanFolder({
       folder,
       recursive: $('#localRecursive').checked,
     });
@@ -392,7 +392,7 @@ function wireLocal() {
     $('#localCancel').disabled = false;
     setText('#localStatus', 'Starting...');
     try {
-      const result = await window.mediaForge.convertLocal({
+      const result = await window.lumaFetch.convertLocal({
         files: state.localFiles,
         outputDir: $('#localOutput').value,
         bitrate: $('#localQuality').value,
@@ -408,7 +408,7 @@ function wireLocal() {
   });
   $('#localCancel').addEventListener('click', () => {
     setText('#localStatus', 'Cancelling...');
-    window.mediaForge.cancelLocal();
+    window.lumaFetch.cancelLocal();
   });
 
   const dropTarget = $('.queue-card');
@@ -424,7 +424,7 @@ function wireLocal() {
     if (!paths.length) return;
     setText('#localStatus', 'Scanning dropped items...');
     try {
-      const files = await window.mediaForge.collectMediaPaths({
+      const files = await window.lumaFetch.collectMediaPaths({
         paths,
         recursive: $('#localRecursive').checked,
       });
@@ -437,7 +437,7 @@ function wireLocal() {
     }
   });
 
-  window.mediaForge.onLocalEvent((event) => {
+  window.lumaFetch.onLocalEvent((event) => {
     if (event.type === 'item') {
       state.localStatuses.set(event.inputPath, event.status);
       setText('#localStatus', `${event.index}/${event.total}: ${basename(event.inputPath)}`);
@@ -475,7 +475,7 @@ function wireYoutube() {
     setBusy($('#youtubeAnalyze'), true, 'Analyzing...');
     setText('#youtubeStatus', urls.length > 1 ? 'Analyzing first link...' : 'Analyzing...');
     try {
-      const info = await window.mediaForge.analyzeYoutube({ url: urls[0] });
+      const info = await window.lumaFetch.analyzeYoutube({ url: urls[0] });
       setText('#youtubeTitle', info.title);
       const select = $('#youtubeVideoQuality');
       select.innerHTML = '';
@@ -499,7 +499,7 @@ function wireYoutube() {
     setText('#youtubeTitle', total > 1 ? `Audio ${index}/${total}` : 'Audio download');
     setText('#youtubeStatus', url);
     $('#youtubeProgress').value = 0;
-    return window.mediaForge.downloadYoutubeAudio({
+    return window.lumaFetch.downloadYoutubeAudio({
       url,
       outputDir,
       bitrate: $('#youtubeAudioQuality').value,
@@ -512,7 +512,7 @@ function wireYoutube() {
     setText('#youtubeTitle', total > 1 ? `Video ${index}/${total}` : 'Video download');
     setText('#youtubeStatus', `${quality} - ${url}`);
     $('#youtubeProgress').value = 0;
-    return window.mediaForge.downloadYoutubeVideo({
+    return window.lumaFetch.downloadYoutubeVideo({
       url,
       outputDir,
       quality,
@@ -556,10 +556,10 @@ function wireYoutube() {
   });
   $('#youtubeCancel').addEventListener('click', () => {
     setText('#youtubeStatus', 'Cancelling...');
-    window.mediaForge.cancelYoutube();
+    window.lumaFetch.cancelYoutube();
   });
 
-  window.mediaForge.onYoutubeEvent((event) => {
+  window.lumaFetch.onYoutubeEvent((event) => {
     if (event.type === 'download') {
       setText('#youtubeStatus', `${event.stage}${event.percent == null ? '' : ` ${event.percent.toFixed(1)}%`}`);
       if (event.percent != null) $('#youtubeProgress').value = event.percent;
@@ -587,7 +587,7 @@ function wireBot() {
   $('#botSaveToken').addEventListener('click', async () => {
     $('#botSaveToken').disabled = true;
     try {
-      const result = await window.mediaForge.saveBotToken({ token: $('#botToken').value.trim() });
+      const result = await window.lumaFetch.saveBotToken({ token: $('#botToken').value.trim() });
       setText('#botHint', result.saved ? 'Token saved' : 'Saved token cleared');
       toast(result.saved ? 'Token saved' : 'Token cleared');
     } catch (error) {
@@ -602,7 +602,7 @@ function wireBot() {
     $('#botConnect').disabled = true;
     setText('#botStatus', 'Connecting...');
     try {
-      const result = await window.mediaForge.connectBot({
+      const result = await window.lumaFetch.connectBot({
         token: $('#botToken').value.trim(),
         bitrate: $('#botQuality').value,
         maxFileMb: Number($('#botMaxMb').value || 50),
@@ -624,7 +624,7 @@ function wireBot() {
     }
   });
   $('#botDisconnect').addEventListener('click', async () => {
-    await window.mediaForge.disconnectBot();
+    await window.lumaFetch.disconnectBot();
     state.botConnected = false;
     $('#botConnect').disabled = false;
     $('#botDisconnect').disabled = true;
@@ -638,7 +638,7 @@ function wireBot() {
     toast('Telegram disconnected');
   });
 
-  window.mediaForge.onBotEvent((event) => {
+  window.lumaFetch.onBotEvent((event) => {
     if (event.type === 'status') setText('#botStatus', event.text);
     if (event.type === 'chat') setText('#botChat', `Chat ${event.chatId}`);
     if (event.type === 'job') {
@@ -655,7 +655,7 @@ function wireSettings() {
   $('#settingsRefreshDiag').addEventListener('click', refreshDiagnostics);
   $('#settingsCleanTemp').addEventListener('click', async () => {
     try {
-      const result = await window.mediaForge.cleanTempFiles();
+      const result = await window.lumaFetch.cleanTempFiles();
       toast('Temp cleaned', `${result.removed} folder${result.removed === 1 ? '' : 's'}, ${formatBytes(result.freedBytes)} freed.`);
       await refreshDiagnostics();
     } catch (error) {
@@ -664,14 +664,14 @@ function wireSettings() {
   });
   $('#settingsUpdateCheck').addEventListener('click', async () => {
     try {
-      const result = await window.mediaForge.checkForUpdates();
+      const result = await window.lumaFetch.checkForUpdates();
       toast(result.ok ? 'Update check started' : 'Update check unavailable', result.message || 'Watching GitHub Releases.');
     } catch (error) {
       toast('Update check failed', friendlyError(error), 'error');
     }
   });
 
-  window.mediaForge.onUpdateEvent((event) => {
+  window.lumaFetch.onUpdateEvent((event) => {
     if (event.type === 'error') toast('Update check failed', event.message, 'error');
     else toast('Updates', event.message || 'Update status changed.');
   });

@@ -257,43 +257,6 @@ LumaFetch uses `electron-updater` for automatic updates from GitHub Releases.
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-### Quick Start for Contributors
-
-```bash
-# Fork and clone
-git clone https://github.com/YOUR_USERNAME/LumaFetch.git
-cd LumaFetch
-
-# Create a branch
-git checkout -b feature/amazing-feature
-
-# Make your changes and test thoroughly
-npm start
-
-# Commit with clear messages
-git commit -m "Add amazing feature"
-
-# Push and create PR
-git push origin feature/amazing-feature
-```
-
-### What We Need Help With
-
-- 🐛 Bug fixes
-- 🎨 UI/UX improvements
-- 📝 Documentation
-- 🌍 Translations
-- ✅ Tests
-- 🔒 Security enhancements
-
-See [IMPROVEMENTS.md](./IMPROVEMENTS.md) for a comprehensive list of planned features.
-
----
-
 ## 📄 Legal
 
 ### License
@@ -325,11 +288,9 @@ LumaFetch uses:
 
 ---
 
-## 🙏 Acknowledgments
+## Author
 
-- Thanks to the yt-dlp team for maintaining an incredible tool
-- Inspired by various media downloaders and converters
-- Built with ❤️ by Kapustiack
+- Built and maintained by Kapustiack
 
 ---
 
