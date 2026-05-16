@@ -1,14 +1,17 @@
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const https = require('node:https');
-const os = require('node:os');
 const path = require('node:path');
 
 const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
-const FFMPEG_ZIP_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip';
+const FFMPEG_RELEASE_API = 'https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest';
 
 function appRoot() {
   return path.resolve(__dirname, '..', '..');
+}
+
+function dependenciesDir(userDataPath) {
+  return path.join(userDataPath, 'dependencies');
 }
 
 function runCapture(command, args, options = {}) {
@@ -53,8 +56,14 @@ function exists(filePath) {
 
 function candidateToolDirs(userDataPath) {
   const dirs = [];
-  if (userDataPath) dirs.push(path.join(userDataPath, 'tools'));
-  if (process.resourcesPath) dirs.push(path.join(process.resourcesPath, 'tools'));
+  if (userDataPath) {
+    dirs.push(dependenciesDir(userDataPath));
+    dirs.push(path.join(userDataPath, 'tools'));
+  }
+  if (process.resourcesPath) {
+    dirs.push(path.join(process.resourcesPath, 'dependencies'));
+    dirs.push(path.join(process.resourcesPath, 'tools'));
+  }
   const root = appRoot();
   if (!root.toLowerCase().includes('.asar')) {
     dirs.push(path.join(root, 'electron_app', 'vendor'));
@@ -179,11 +188,67 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
+function parseJsonResponse(text, url) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Could not parse response from ${url}: ${error.message}`);
+  }
+}
+
+function requestText(url, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const requestUrl = new URL(url);
+    const request = https.get(requestUrl, {
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'LumaFetch',
+      },
+      timeout: timeoutMs,
+    }, (response) => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+        response.resume();
+        if (!response.headers.location) {
+          reject(new Error('Request redirect did not include a location.'));
+          return;
+        }
+        requestText(new URL(response.headers.location, requestUrl).toString(), timeoutMs).then(resolve, reject);
+        return;
+      }
+      let text = '';
+      response.on('data', (chunk) => { text += chunk.toString(); });
+      response.on('end', () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`Request failed: HTTP ${response.statusCode}`));
+          return;
+        }
+        resolve(text);
+      });
+    });
+    request.on('timeout', () => request.destroy(new Error('Request timed out')));
+    request.on('error', reject);
+  });
+}
+
+function selectFfmpegAsset(assets = []) {
+  return assets.find((asset) => /^ffmpeg-N-.*-win64-gpl\.zip$/i.test(asset.name))
+    || assets.find((asset) => /^ffmpeg-.*-win64-gpl(?:-[\d.]+)?\.zip$/i.test(asset.name) && !/-shared/i.test(asset.name));
+}
+
+async function resolveFfmpegZipUrl() {
+  const release = parseJsonResponse(await requestText(FFMPEG_RELEASE_API), FFMPEG_RELEASE_API);
+  const asset = selectFfmpegAsset(release.assets || []);
+  if (!asset || !asset.browser_download_url) {
+    throw new Error('Could not find a Windows ffmpeg archive in the latest release.');
+  }
+  return asset.browser_download_url;
+}
+
 function downloadFile(url, destination, onProgress) {
   ensureDir(path.dirname(destination));
   return new Promise((resolve, reject) => {
     const requestUrl = new URL(url);
-    const request = https.get(requestUrl, (response) => {
+    const request = https.get(requestUrl, { headers: { 'User-Agent': 'LumaFetch' } }, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
         if (!response.headers.location) {
@@ -218,24 +283,14 @@ async function copyImageioFfmpeg(targetPath, onStep) {
   const python = await findPython();
   if (!python) return false;
   try {
-    let result;
-    try {
-      result = await runCapture(
-        python.command,
-        [...python.prefix, '-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
-        { timeoutMs: 20000 },
-      );
-    } catch (_error) {
-      onStep('Installing imageio-ffmpeg with pip', 58);
-      await runCapture(python.command, [...python.prefix, '-m', 'pip', 'install', 'imageio-ffmpeg>=0.6.0'], { timeoutMs: 180000 });
-      result = await runCapture(
-        python.command,
-        [...python.prefix, '-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
-        { timeoutMs: 20000 },
-      );
-    }
+    const result = await runCapture(
+      python.command,
+      [...python.prefix, '-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
+      { timeoutMs: 20000 },
+    );
     const source = result.stdout.trim();
     if (exists(source)) {
+      onStep('Copying local ffmpeg', 58);
       fs.copyFileSync(source, targetPath);
       return true;
     }
@@ -259,12 +314,14 @@ function findFileRecursive(dirPath, fileName) {
 }
 
 async function installFfmpegFromZip(targetPath, onStep) {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lumafetch-ffmpeg-'));
+  const tempRoot = fs.mkdtempSync(path.join(path.dirname(targetPath), 'ffmpeg-download-'));
   const zipPath = path.join(tempRoot, 'ffmpeg.zip');
   const extractPath = path.join(tempRoot, 'extract');
   try {
+    onStep('Resolving ffmpeg download', 56);
+    const ffmpegUrl = await resolveFfmpegZipUrl();
     onStep('Downloading ffmpeg', 60);
-    await downloadFile(FFMPEG_ZIP_URL, zipPath, (ratio) => onStep('Downloading ffmpeg', 60 + Math.floor(ratio * 20)));
+    await downloadFile(ffmpegUrl, zipPath, (ratio) => onStep('Downloading ffmpeg', 60 + Math.floor(ratio * 20)));
     onStep('Extracting ffmpeg', 82);
     ensureDir(extractPath);
     await runCapture('powershell.exe', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${extractPath}" -Force`], { timeoutMs: 240000 });
@@ -277,13 +334,13 @@ async function installFfmpegFromZip(targetPath, onStep) {
 }
 
 async function installDependencies(userDataPath, onStep = () => {}) {
-  const toolsDir = path.join(userDataPath, 'tools');
-  ensureDir(toolsDir);
+  const installDir = dependenciesDir(userDataPath);
+  ensureDir(installDir);
   onStep('Checking tools', 2);
   const before = await checkDependencies(userDataPath);
 
   if (!before.ytdlp) {
-    const target = path.join(toolsDir, 'yt-dlp.exe');
+    const target = path.join(installDir, 'yt-dlp.exe');
     onStep('Downloading yt-dlp', 8);
     await downloadFile(YTDLP_URL, target, (ratio) => onStep('Downloading yt-dlp', 8 + Math.floor(ratio * 32)));
   } else {
@@ -292,7 +349,7 @@ async function installDependencies(userDataPath, onStep = () => {}) {
 
   const afterYtdlp = await checkDependencies(userDataPath);
   if (!afterYtdlp.ffmpegPath) {
-    const target = path.join(toolsDir, 'ffmpeg.exe');
+    const target = path.join(installDir, 'ffmpeg.exe');
     onStep('Preparing ffmpeg', 52);
     const copied = await copyImageioFfmpeg(target, onStep);
     if (!copied) {
@@ -316,4 +373,7 @@ module.exports = {
   findTools,
   checkDependencies,
   installDependencies,
+  dependenciesDir,
+  resolveFfmpegZipUrl,
+  selectFfmpegAsset,
 };

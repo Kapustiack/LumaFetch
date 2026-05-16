@@ -46,12 +46,20 @@ function checkJavaScriptSyntax() {
 function checkCoreHelpers() {
   const { normalizeAudioQuality, formatSelectorForQuality } = require('../electron_app/core/ytdlp');
   const { collectMediaFiles } = require('../electron_app/core/converter');
+  const { dependenciesDir, selectFfmpegAsset } = require('../electron_app/core/tools');
 
   assert(normalizeAudioQuality('192k') === '192K', 'Expected 192k to normalize to 192K.');
   assert(normalizeAudioQuality('320') === '320K', 'Expected 320 to normalize to 320K.');
   assert(normalizeAudioQuality('bad') === '192K', 'Expected invalid quality to fall back to 192K.');
   assert(formatSelectorForQuality('720p').includes('height<=720'), 'Expected 720p selector to cap height.');
   assert(Array.isArray(collectMediaFiles([], true)), 'Expected collectMediaFiles to return an array.');
+  assert(dependenciesDir('UserData').endsWith(path.join('UserData', 'dependencies')), 'Expected dependencies folder under user data.');
+
+  const asset = selectFfmpegAsset([
+    { name: 'ffmpeg-n8.1-win64-gpl-shared-8.1.zip' },
+    { name: 'ffmpeg-N-123456-win64-gpl.zip', browser_download_url: 'https://example.com/ffmpeg.zip' },
+  ]);
+  assert(asset && asset.browser_download_url, 'Expected ffmpeg asset selection to prefer the non-shared Windows GPL zip.');
 }
 
 function checkPythonSyntax() {

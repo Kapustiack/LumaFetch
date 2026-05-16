@@ -32,7 +32,7 @@
     "extraResources": [
       {
         "from": "electron_app/vendor",
-        "to": "tools",
+        "to": "dependencies",
         "filter": [
           "**/*"
         ]
