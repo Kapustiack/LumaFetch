@@ -8,6 +8,7 @@
   "main": "electron_app/main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node scripts/validate.js",
     "build": "electron-builder --win nsis",
     "build:signed": "electron-builder --win nsis -c.win.signAndEditExecutable=true",
     "build:publish": "electron-builder --win nsis --publish always",

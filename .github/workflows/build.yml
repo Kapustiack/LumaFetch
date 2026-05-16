@@ -27,9 +27,12 @@ jobs:
       
       - name: Install dependencies
         run: |
-          npm install
+          npm ci
           pip install -r requirements.txt
-      
+
+      - name: Run validation
+        run: npm test
+
       - name: Build Windows installer
         run: npm run build
         env:
@@ -74,9 +77,12 @@ jobs:
       
       - name: Install dependencies
         run: |
-          npm install
+          npm ci
           pip install -r requirements.txt
-      
+
+      - name: Run validation
+        run: npm test
+
       - name: Build Linux AppImage
         run: npx electron-builder --linux appimage
       
@@ -105,12 +111,12 @@ jobs:
       
       - name: Install dependencies
         run: |
-          npm install
+          npm ci
           pip install -r requirements.txt
       
       - name: Run basic tests
         run: |
-          echo "Running basic validation tests..."
           node --version
           python --version
+          npm test
           npm run pack
